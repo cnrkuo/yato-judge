@@ -3,16 +3,19 @@ package main
 import (
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 func main() {
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello World!"))
+	e := echo.New()
+	e.Use(middleware.RequestLogger())
+
+	e.GET("/", func(c *echo.Context) error {
+		return c.String(http.StatusOK, "Hello, World!")
 	})
 
-	http.ListenAndServe(":2486", r)
+	if err := e.Start(":8080"); err != nil {
+		e.Logger.Error("failed to start server", "error", err)
+	}
 }
