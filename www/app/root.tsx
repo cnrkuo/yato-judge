@@ -1,32 +1,44 @@
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
 
-import type { Route } from "./+types/root"
+import "@fontsource-variable/public-sans"
+import "@fontsource-variable/inter-tight"
+
 import "./app.css"
 
+import Footer from "@/components/global/footer"
+import Header from "@/components/global/header"
+
+import type { Route } from "./+types/root"
+
 export const links: Route.LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
+  { rel: "preload", href: "/1f986.svg", as: "image" },
+  { rel: "manifest", href: "/.vite/manifest.json" },
+  { rel: "icon", type: "image/svg+xml", href: "/1f986.svg" }, // Twemoji U+1F986 duck emoji
+  { rel: "icon", type: "image/png", href: "/favicon-96x96.png", sizes: "96x96" },
+  { rel: "shortcut icon", href: "/favicon.ico" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
 ]
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({ children }: { children: React.ReactElement }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="renderer" content="webkit" />
+        <meta name="force-rendering" content="webkit" />
+        <meta name="google" content="notranslate" />
+        <meta name="theme-color" content="#09090b" />
+        <meta name="msapplication-TileColor" content="#09090b" />
         <Meta />
         <Links />
       </head>
-      <body>
-        {children}
+      <body className="font-normal scheme-dark bg-zinc-950">
+        <div className="min-h-screen text-zinc-100">
+          <Header />
+          <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
+          <Footer />
+        </div>
         <ScrollRestoration />
         <Scripts />
       </body>

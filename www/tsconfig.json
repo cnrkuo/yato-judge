@@ -1,15 +1,15 @@
 {
   "include": ["**/*", "**/.server/**/*", "**/.client/**/*", ".react-router/types/**/*"],
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "es2022"],
-    "types": ["node", "vite/client"],
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["node", "vite/client", "unplugin-icons/types/react"],
     "target": "es2022",
-    "module": "es2022",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "rootDirs": [".", "./.react-router/types"],
     "paths": {
-      "~/*": ["./app/*"]
+      "@/*": ["./app/*"]
     },
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
