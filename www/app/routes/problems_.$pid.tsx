@@ -79,24 +79,25 @@ export default function Problem() {
           </math>{" "}
           is:
         </p>
-
-        <math xmlns="http://www.w3.org/1998/Math/MathML">
-          <mn>3</mn>
-          <mo>→</mo>
-          <mn>10</mn>
-          <mo>→</mo>
-          <mn>5</mn>
-          <mo>→</mo>
-          <mn>16</mn>
-          <mo>→</mo>
-          <mn>8</mn>
-          <mo>→</mo>
-          <mn>4</mn>
-          <mo>→</mo>
-          <mn>2</mn>
-          <mo>→</mo>
-          <mn>1</mn>
-        </math>
+        <p>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <mn>3</mn>
+            <mo>→</mo>
+            <mn>10</mn>
+            <mo>→</mo>
+            <mn>5</mn>
+            <mo>→</mo>
+            <mn>16</mn>
+            <mo>→</mo>
+            <mn>8</mn>
+            <mo>→</mo>
+            <mn>4</mn>
+            <mo>→</mo>
+            <mn>2</mn>
+            <mo>→</mo>
+            <mn>1</mn>
+          </math>
+        </p>
 
         <p>
           Your task is to simulate the execution of the algorithm for a given value of{" "}
