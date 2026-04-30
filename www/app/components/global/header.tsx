@@ -5,7 +5,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/85 backdrop-blur">
-      <div className="mx-auto flex h-12 max-w-6xl items-center px-4">
+      <div className="overflow-x-auto mx-auto flex h-12 max-w-6xl items-center px-4 gap-8">
         {pathname === "/" ? (
           <span className="select-none hover:cursor-not-allowed">🦆</span>
         ) : (
@@ -20,7 +20,7 @@ export default function Header() {
           </button>
         )}
 
-        <nav className="ml-6 flex items-center gap-4 text-zinc-400">
+        <nav className="flex items-center gap-4 text-zinc-400">
           <Link to="/problems" className="hover:text-zinc-200">
             Problems
           </Link>
@@ -39,7 +39,7 @@ export default function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-4">
-          <Link to="/signup" className="text-zinc-500 hover:text-zinc-200">
+          <Link to="/signup" className="text-nowrap text-zinc-500 hover:text-zinc-200">
             Sign up
           </Link>
           <Link to="/login" className="text-zinc-500 hover:text-zinc-200">
