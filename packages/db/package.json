@@ -1,0 +1,23 @@
+{
+  "name": "@internal/db",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/main.ts",
+      "types": "./src/main.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "drizzle-kit": "drizzle-kit"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:",
+    "postgres": "catalog:"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.4",
+    "typescript": "^5.8.3"
+  }
+}

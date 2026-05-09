@@ -1,0 +1,28 @@
+{
+  "name": "@internal/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc",
+    "dev": "node --experimental-strip-types --watch src/main.ts",
+    "clear-dist": "node -e 'fs.rmSync(\"./dist/\", { recursive: true, force: true })'",
+    "bundle": "esbuild src/main.ts --bundle --packages=external --platform=node --format=esm --outdir=dist --sourcemap",
+    "build": "pnpm run clear-dist && pnpm run bundle",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "catalog:",
+    "fastify": "^5.8.5",
+    "pg": "^8.20.0",
+    "superjson": "^2.2.6",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.3"
+  }
+}
