@@ -1,58 +1,58 @@
-import { Link, useLoaderData, useSearchParams } from "react-router"
+import { Link, useLoaderData, useSearchParams } from 'react-router';
 
-export const meta = () => [{ title: "Contest – YATO Judge" }]
+export const meta = () => [{ title: 'Contest – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => ({
   contest: {
-    id: "7",
+    id: '7',
     schedule: {
-      registerBefore: new Date("2025-11-08 12:00:00").toISOString(),
-      start: new Date("2025-11-08 12:00:00").toISOString(),
-      end: new Date("2025-11-08 17:00:00").toISOString(),
+      registerBefore: new Date('2025-11-08 12:00:00').toISOString(),
+      start: new Date('2025-11-08 12:00:00').toISOString(),
+      end: new Date('2025-11-08 17:00:00').toISOString(),
     },
     description: `HIIT Open is an ICPC-style team contest organized by the Helsinki Institute for Information Technology (HIIT).`,
   },
   problems: [
-    { key: "A", id: 1, title: "Aristocracy", myStatus: "Unattempted" },
-    { key: "B", id: 2, title: "Broken car race", myStatus: "AC" },
-    { key: "C", id: 3, title: "Coloring", myStatus: "Tried" },
+    { key: 'A', id: 1, title: 'Aristocracy', myStatus: 'Unattempted' },
+    { key: 'B', id: 2, title: 'Broken car race', myStatus: 'AC' },
+    { key: 'C', id: 3, title: 'Coloring', myStatus: 'Tried' },
   ],
   submissions: [
     {
       id: 1,
-      problemKey: "A",
-      user: "alice",
-      verdict: "WA",
+      problemKey: 'A',
+      user: 'alice',
+      verdict: 'WA',
       score: 0,
-      language: "C++",
+      language: 'C++',
       time: new Date().toISOString(),
     },
     {
       id: 1,
-      problemKey: "A",
-      user: "bob",
-      verdict: "CE",
+      problemKey: 'A',
+      user: 'bob',
+      verdict: 'CE',
       score: 0,
-      language: "Python",
+      language: 'Python',
       time: new Date().toISOString(),
     },
   ],
   scoreboard: [
-    { rank: 1, user: "alice", pA: 100, pB: 100, pC: 0, total: 200 },
-    { rank: 1, user: "bob", pA: 100, pB: 100, pC: 0, total: 200 },
+    { rank: 1, user: 'alice', pA: 100, pB: 100, pC: 0, total: 200 },
+    { rank: 1, user: 'bob', pA: 100, pB: 100, pC: 0, total: 200 },
   ],
-})
+});
 
 export default function ContestInner() {
-  const { contest, problems, submissions, scoreboard } = useLoaderData()
-  const [params] = useSearchParams()
+  const { contest, problems, submissions, scoreboard } = useLoaderData();
+  const [params] = useSearchParams();
 
-  const tab = params.get("tab") ?? "overview"
-  const problemKey = params.get("problem") ?? "A"
+  const tab = params.get('tab') ?? 'overview';
+  const problemKey = params.get('problem') ?? 'A';
 
-  if (tab === "problems") {
+  if (tab === 'problems') {
     return (
       <div className="space-y-8">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
@@ -70,7 +70,7 @@ export default function ContestInner() {
                     <tr
                       key={p.key}
                       className={`border-b border-zinc-800 hover:bg-zinc-900/50 ${
-                        p.key === problemKey ? "bg-zinc-900/50" : ""
+                        p.key === problemKey ? 'bg-zinc-900/50' : ''
                       }`}>
                       <td className="px-3 py-2 font-mono">{p.key}</td>
                       <td className="px-3 py-2">
@@ -129,7 +129,7 @@ export default function ContestInner() {
 
             <section className="space-y-6 text-zinc-200">
               <p>
-                You are given all numbers between{" "}
+                You are given all numbers between{' '}
                 <math>
                   <mn>1</mn>
                   <mo>,</mo>
@@ -138,34 +138,34 @@ export default function ContestInner() {
                   <mo>…</mo>
                   <mo>,</mo>
                   <mi>n</mi>
-                </math>{" "}
+                </math>{' '}
                 except one. Your task is to find the missing number.
               </p>
 
               <div className="space-y-2">
                 <h2 className="font-semibold text-zinc-100">Input</h2>
                 <p>
-                  The first input line contains an integer{" "}
+                  The first input line contains an integer{' '}
                   <math>
                     <mi>n</mi>
-                  </math>{" "}
+                  </math>{' '}
                   .
                 </p>
                 <p>
-                  The second line contains{" "}
+                  The second line contains{' '}
                   <math>
                     <mi>n</mi>
                     <mo>−</mo>
                     <mi>1</mi>
-                  </math>{" "}
-                  numbers. Each number is distinct and between{" "}
+                  </math>{' '}
+                  numbers. Each number is distinct and between{' '}
                   <math>
                     <mi>1</mi>
-                  </math>{" "}
-                  and{" "}
+                  </math>{' '}
+                  and{' '}
                   <math>
                     <mi>n</mi>
-                  </math>{" "}
+                  </math>{' '}
                   (inclusive).
                 </p>
               </div>
@@ -197,7 +197,7 @@ export default function ContestInner() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
                     <div className="mb-2 text-xs uppercase text-zinc-400">Input</div>
-                    <pre className="font-mono text-sm text-zinc-200">5{"\n"}2 3 1 5</pre>
+                    <pre className="font-mono text-sm text-zinc-200">5{'\n'}2 3 1 5</pre>
                   </div>
 
                   <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -210,10 +210,10 @@ export default function ContestInner() {
           </main>
         </div>
       </div>
-    )
+    );
   }
 
-  if (tab === "submissions") {
+  if (tab === 'submissions') {
     return (
       <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/40">
         <table className="w-full border-collapse text-sm">
@@ -243,10 +243,10 @@ export default function ContestInner() {
           </tbody>
         </table>
       </div>
-    )
+    );
   }
 
-  if (tab === "scoreboard") {
+  if (tab === 'scoreboard') {
     return (
       <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/40">
         <table className="w-full border-collapse text-sm">
@@ -274,7 +274,7 @@ export default function ContestInner() {
           </tbody>
         </table>
       </div>
-    )
+    );
   }
 
   return (
@@ -298,5 +298,5 @@ export default function ContestInner() {
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 text-zinc-200">{contest.description}</div>
     </div>
-  )
+  );
 }

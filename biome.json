@@ -8,13 +8,12 @@
     "defaultBranch": "master"
   },
   "files": {
-    "includes": ["apps/**", "packages/**", "!apps/www/public", "!**/node_modules"]
+    "includes": ["apps/**", "packages/**", "!apps/www/public"]
   },
   "assist": {
     "actions": {
       "source": {
-        "organizeImports": "on",
-        "useSortedProperties": "on"
+        "organizeImports": "on"
       }
     }
   },
@@ -28,29 +27,45 @@
     "enabled": true,
     "rules": {
       "recommended": true,
-      "complexity": {
-        "noForEach": "off"
+      "nursery": {
+        "noFloatingPromises": "error"
       },
-      "suspicious": {
-        "noExplicitAny": "off"
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "noInferrableTypes": "warn"
       }
     }
   },
   "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
     "formatter": {
       "arrowParentheses": "always",
       "bracketSameLine": true,
       "bracketSpacing": true,
       "jsxQuoteStyle": "double",
       "quoteProperties": "asNeeded",
-      "quoteStyle": "double",
-      "semicolons": "asNeeded",
+      "quoteStyle": "single",
+      "semicolons": "always",
       "trailingCommas": "all"
     }
   },
+  "overrides": [
+    {
+      "includes": ["apps/api/src/**/*.*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off",
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ],
   "css": {
     "parser": {
       "tailwindDirectives": true
@@ -58,6 +73,7 @@
   },
   "json": {
     "formatter": {
+      "enabled": true,
       "trailingCommas": "none"
     }
   }

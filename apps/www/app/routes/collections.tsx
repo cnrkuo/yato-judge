@@ -1,7 +1,7 @@
-import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { Link, useLoaderData } from "react-router"
+import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { Link, useLoaderData } from 'react-router';
 
-export const meta = () => [{ title: "Collections – YATO Judge" }]
+export const meta = () => [{ title: 'Collections – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
@@ -9,55 +9,55 @@ export const loader = async () => ({
   collections: [
     {
       id: 1,
-      title: "Collection #1",
-      description: "Collection for beginners",
+      title: 'Collection #1',
+      description: 'Collection for beginners',
       solved: 8,
       total: 12,
-      difficulty: "E–M",
+      difficulty: 'E–M',
     },
     {
       id: 2,
-      title: "Collection #2",
-      description: "Collection for beginners",
+      title: 'Collection #2',
+      description: 'Collection for beginners',
       solved: 3,
       total: 10,
-      difficulty: "M–H",
+      difficulty: 'M–H',
     },
     {
       id: 3,
-      title: "Collection #3",
-      description: "Collection for beginners",
+      title: 'Collection #3',
+      description: 'Collection for beginners',
       solved: 0,
       total: 15,
-      difficulty: "M–H",
+      difficulty: 'M–H',
     },
     {
       id: 4,
-      title: "Collection #4",
-      description: "Collection for beginners",
+      title: 'Collection #4',
+      description: 'Collection for beginners',
       solved: 1,
       total: 14,
-      difficulty: "H–I",
+      difficulty: 'H–I',
     },
   ],
-})
+});
 
 export default function Collections() {
-  const { collections } = useLoaderData()
+  const { collections } = useLoaderData();
 
   const table = useReactTable({
     data: collections,
     columns: [
       {
-        header: "ID",
-        accessorKey: "id",
+        header: 'ID',
+        accessorKey: 'id',
         cell: (info: any) => <span className="font-mono text-zinc-400">{info.getValue()}</span>,
       },
       {
-        header: "Title",
-        accessorKey: "title",
+        header: 'Title',
+        accessorKey: 'title',
         cell: (info: any) => {
-          const row = info.row.original
+          const row = info.row.original;
           return (
             <div className="flex flex-col">
               <Link to={`/collections/${row.id}`} className="text-zinc-100 hover:underline">
@@ -65,14 +65,14 @@ export default function Collections() {
               </Link>
               <span className="text-xs text-zinc-500">{row.description}</span>
             </div>
-          )
+          );
         },
       },
       {
-        header: "Progress",
+        header: 'Progress',
         cell: (info: any) => {
-          const { solved, total } = info.row.original
-          const ratio = Math.round((solved / total) * 100)
+          const { solved, total } = info.row.original;
+          const ratio = Math.round((solved / total) * 100);
 
           return (
             <div className="flex flex-col text-xs">
@@ -81,17 +81,17 @@ export default function Collections() {
               </span>
               <span className="text-zinc-500">{ratio}%</span>
             </div>
-          )
+          );
         },
       },
       {
-        header: "Problems",
-        accessorKey: "total",
+        header: 'Problems',
+        accessorKey: 'total',
         cell: (info: any) => <span className="font-mono text-zinc-300">{info.getValue()}</span>,
       },
       {
-        header: "Difficulty",
-        accessorKey: "difficulty",
+        header: 'Difficulty',
+        accessorKey: 'difficulty',
         cell: (info: any) => (
           <span className="inline-flex items-center rounded-md border border-zinc-700 px-2 py-0.5 text-xs font-mono text-zinc-300">
             {info.getValue()}
@@ -100,7 +100,7 @@ export default function Collections() {
       },
     ],
     getCoreRowModel: getCoreRowModel(),
-  })
+  });
 
   return (
     <div className="relative overflow-x-auto rounded-lg border border-zinc-800">
@@ -131,5 +131,5 @@ export default function Collections() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }

@@ -1,6 +1,6 @@
-import { Link, useLoaderData } from "react-router"
+import { Link, useLoaderData } from 'react-router';
 
-export const meta = () => [{ title: "Collection – YATO Judge" }]
+export const meta = () => [{ title: 'Collection – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
@@ -9,7 +9,7 @@ export const loader = async () => ({
   data: [
     {
       rank: 1,
-      username: "json",
+      username: 'json',
       totalScore: 600,
       solved: 6,
       problems: [
@@ -23,7 +23,7 @@ export const loader = async () => ({
     },
     {
       rank: 2,
-      username: "yaml",
+      username: 'yaml',
       totalScore: 500,
       solved: 5,
       problems: [
@@ -37,7 +37,7 @@ export const loader = async () => ({
     },
     {
       rank: 3,
-      username: "toml",
+      username: 'toml',
       totalScore: 300,
       solved: 3,
       problems: [
@@ -50,10 +50,10 @@ export const loader = async () => ({
       ],
     },
   ],
-})
+});
 
 export default function Collection() {
-  const { data, problems } = useLoaderData()
+  const { data, problems } = useLoaderData();
 
   return (
     <div className="space-y-6">
@@ -109,5 +109,5 @@ export default function Collection() {
         </table>
       </div>
     </div>
-  )
+  );
 }

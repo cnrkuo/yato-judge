@@ -1,15 +1,19 @@
 {
-  "include": ["src"],
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", "dist"],
   "compilerOptions": {
-    "lib": ["esnext", "dom"],
-    "target": "esnext",
+    "types": ["vitest/globals", "node"],
+    "outDir": "./dist",
+    "target": "es2024",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true,
-    "esModuleInterop": true,
-    "strict": true,
-    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "$/*": ["./src/modules/*"]
+    },
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": true,
     "skipLibCheck": true
   }
 }

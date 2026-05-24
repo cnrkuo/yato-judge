@@ -1,28 +1,30 @@
-import { Link, useLoaderData } from "react-router"
-import Shiki from "react-shiki"
+import { Link, useLoaderData } from 'react-router';
+import Shiki from 'react-shiki/core';
 
-export const meta = () => [{ title: "Submission – YATO Judge" }]
+import { shiki_highlighter } from '@/lib/shiki_highlighter';
+
+export const meta = () => [{ title: 'Submission – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => ({
   submission: {
-    id: "V2S175CT",
+    id: 'V2S175CT',
     problemId: 1,
-    problemTitle: "Weird Algorithm",
-    username: "alice",
-    compiler: "C++ (g++ 13.2.0)",
+    problemTitle: 'Weird Algorithm',
+    username: 'alice',
+    compiler: 'C++ (g++ 13.2.0)',
     timestamp: new Date().toISOString(),
-    verdict: "WA",
-    totalTime: "312 ms",
-    peakMemory: "18 MB",
+    verdict: 'WA',
+    totalTime: '312 ms',
+    peakMemory: '18 MB',
     passed: 9,
     total: 12,
     testcases: Array.from({ length: 12 }).map((_, i) => ({
       id: i + 1,
-      status: i < 9 ? "AC" : i === 9 ? "WA" : "SKIPPED",
-      time: i < 9 ? `${12 + i * 3} ms` : "—",
-      memory: i < 9 ? `${6 + i} MB` : "—",
+      status: i < 9 ? 'AC' : i === 9 ? 'WA' : 'SKIPPED',
+      time: i < 9 ? `${12 + i * 3} ms` : '—',
+      memory: i < 9 ? `${6 + i} MB` : '—',
     })),
   },
   subtasks: [
@@ -31,20 +33,20 @@ export const loader = async () => ({
     { id: 3, points: 25, gained: false },
     { id: 4, points: 25, gained: false },
   ],
-})
+});
 
 export default function Submission() {
-  const { submission, subtasks } = useLoaderData<typeof loader>()
+  const { submission, subtasks } = useLoaderData<typeof loader>();
 
   const verdictColor = {
-    AC: "text-emerald-400",
-    WA: "text-rose-400",
-    TLE: "text-purple-400",
-    SKIPPED: "text-zinc-500",
-  }
+    AC: 'text-emerald-400',
+    WA: 'text-rose-400',
+    TLE: 'text-purple-400',
+    SKIPPED: 'text-zinc-500',
+  };
 
-  const gainedPoints = subtasks.filter((s) => s.gained).reduce((a, b) => a + b.points, 0)
-  const totalPoints = subtasks.reduce((a, b) => a + b.points, 0)
+  const gainedPoints = subtasks.filter((s) => s.gained).reduce((a, b) => a + b.points, 0);
+  const totalPoints = subtasks.reduce((a, b) => a + b.points, 0);
 
   return (
     <div className="space-y-10">
@@ -53,13 +55,13 @@ export default function Submission() {
 
         <div className="flex flex-wrap gap-6 text-sm text-zinc-400">
           <span>
-            Problem:{" "}
+            Problem:{' '}
             <Link to={`/problems/${submission.problemId}`} className="text-zinc-200 hover:underline">
               #{submission.problemId} {submission.problemTitle}
             </Link>
           </span>
           <span>
-            User:{" "}
+            User:{' '}
             <Link to={`/users/${submission.username}`} className="text-zinc-200 hover:underline">
               {submission.username}
             </Link>
@@ -186,7 +188,11 @@ export default function Submission() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Submitted Code</h2>
-        <Shiki language="cpp" theme="vitesse-dark" className="overflow-x-auto rounded-lg border border-zinc-800">
+        <Shiki
+          language="cpp"
+          highlighter={shiki_highlighter}
+          theme="vitesse-dark"
+          className="overflow-x-auto rounded-lg border border-zinc-800">
           {`#include <bits/stdc++.h>
 #define int long long
 
@@ -210,5 +216,5 @@ main() {
         </Shiki>
       </section>
     </div>
-  )
+  );
 }

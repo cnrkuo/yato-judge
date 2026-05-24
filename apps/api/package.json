@@ -1,28 +1,66 @@
 {
-  "name": "@internal/api",
+  "name": "api",
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc",
-    "dev": "node --experimental-strip-types --watch src/main.ts",
-    "clear-dist": "node -e 'fs.rmSync(\"./dist/\", { recursive: true, force: true })'",
-    "bundle": "esbuild src/main.ts --bundle --packages=external --platform=node --format=esm --outdir=dist --sourcemap",
-    "build": "pnpm run clear-dist && pnpm run bundle",
-    "start": "node dist/main.js"
+    "build": "nest build",
+    "dev": "nest start --debug --watch --env-file .env.development | pino-pretty",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
-    "drizzle-orm": "catalog:",
+    "@nestjs/common": "^11.1.21",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.21",
+    "@nestjs/platform-fastify": "^11.1.21",
+    "@orpc/nest": "^1.14.3",
+    "@orpc/server": "^1.14.3",
+    "@orpc/valibot": "^1.14.3",
+    "@yato/shared": "workspace:^",
+    "amqplib": "^2.0.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
-    "pg": "^8.20.0",
-    "superjson": "^2.2.6",
-    "tslib": "^2.8.1"
+    "nestjs-pino": "^4.6.1",
+    "pg": "^8.21.0",
+    "pg-native": "^3.8.0",
+    "pino-http": "^11.0.0",
+    "reflect-metadata": "^0.2.2",
+    "remeda": "^2.34.0",
+    "rxjs": "^7.8.2",
+    "valibot": "catalog:"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.21",
+    "@nestjs/schematics": "^11.1.0",
+    "@nestjs/testing": "^11.1.21",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.33",
+    "@types/amqplib": "^0.10.8",
+    "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "drizzle-kit": "^0.31.10",
-    "esbuild": "^0.28.0",
-    "typescript": "^5.9.3"
+    "pino-pretty": "^13.1.3",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.2.2",
+    "ts-loader": "^9.5.7",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "catalog:",
+    "unplugin-swc": "^1.5.9",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.6"
+  },
+  "pnpm": {
+    "publicHoistPattern": [
+      "vite"
+    ]
   }
 }

@@ -1,23 +1,24 @@
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 
-import "@fontsource-variable/public-sans"
-import "@fontsource-variable/inter-tight"
+import '@fontsource-variable/public-sans';
+import '@fontsource-variable/inter-tight';
+import '@fontsource/libertinus-math';
 
-import "./app.css"
+import './app.css';
 
-import Footer from "@/components/global/footer"
-import Header from "@/components/global/header"
+import Footer from '@/components/global/footer';
+import Header from '@/components/global/header';
 
-import type { Route } from "./+types/root"
+import type { Route } from './+types/root';
 
 export const links: Route.LinksFunction = () => [
-  { rel: "preload", href: "/1f986.svg", as: "image" },
-  { rel: "manifest", href: "/.vite/manifest.json" },
-  { rel: "icon", type: "image/svg+xml", href: "/1f986.svg" }, // Twemoji U+1F986 duck emoji
-  { rel: "icon", type: "image/png", href: "/favicon-96x96.png", sizes: "96x96" },
-  { rel: "shortcut icon", href: "/favicon.ico" },
-  { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
-]
+  { rel: 'preload', href: '/1f986.svg', as: 'image' },
+  { rel: 'manifest', href: '/.vite/manifest.json' },
+  { rel: 'icon', type: 'image/svg+xml', href: '/1f986.svg' }, // Twemoji U+1F986 duck emoji
+  { rel: 'icon', type: 'image/png', href: '/favicon-96x96.png', sizes: '96x96' },
+  { rel: 'shortcut icon', href: '/favicon.ico' },
+  { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+];
 
 export function Layout({ children }: { children: React.ReactElement }) {
   return (
@@ -43,24 +44,24 @@ export function Layout({ children }: { children: React.ReactElement }) {
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
 
 export default function App() {
-  return <Outlet />
+  return <Outlet />;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!"
-  let details = "An unexpected error occurred."
-  let stack: string | undefined
+  let message = 'Oops!';
+  let details = 'An unexpected error occurred.';
+  let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error"
-    details = error.status === 404 ? "The requested page could not be found." : error.statusText || details
+    message = error.status === 404 ? '404' : 'Error';
+    details = error.status === 404 ? 'The requested page could not be found.' : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message
-    stack = error.stack
+    details = error.message;
+    stack = error.stack;
   }
 
   return (
@@ -73,5 +74,5 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         </pre>
       )}
     </main>
-  )
+  );
 }

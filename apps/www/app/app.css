@@ -53,4 +53,6 @@
 
 math {
   font-size: 1.25em;
+  font-family:
+    "Libertinus Math", "DejaVu Math", "New Computer Modern", "Latin Modern Math", "STIX Two Math", math, serif;
 }

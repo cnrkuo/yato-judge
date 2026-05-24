@@ -1,15 +1,15 @@
-import { useLoaderData } from "react-router"
+import { useLoaderData } from 'react-router';
 
-export const meta = () => [{ title: "Problem – YATO Judge" }]
+export const meta = () => [{ title: 'Problem – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => ({
   id: 1,
-  title: "Weird Algorithm",
-  difficulty: "E",
-  timeLimit: "1s",
-  memoryLimit: "512MB",
+  title: 'Weird Algorithm',
+  difficulty: 'E',
+  timeLimit: '1s',
+  memoryLimit: '512MB',
   userAcceptance: 78,
   submissionAcceptance: 42,
   samples: [
@@ -20,10 +20,10 @@ export const loader = async () => ({
       output: `0 1`,
     },
   ],
-})
+});
 
 export default function Problem() {
-  const { id, title, difficulty, timeLimit, memoryLimit, userAcceptance, submissionAcceptance } = useLoaderData()
+  const { id, title, difficulty, timeLimit, memoryLimit, userAcceptance, submissionAcceptance } = useLoaderData();
 
   return (
     <div className="space-y-10">
@@ -52,31 +52,31 @@ export default function Problem() {
 
       <section className="space-y-6 text-zinc-200">
         <p>
-          Consider an algorithm that takes as input a positive integer{" "}
+          Consider an algorithm that takes as input a positive integer{' '}
           <math>
             <mi>n</mi>
           </math>
-          . If{" "}
+          . If{' '}
           <math>
             <mi>n</mi>
-          </math>{" "}
-          is even, the algorithm divides it by two, and if{" "}
+          </math>{' '}
+          is even, the algorithm divides it by two, and if{' '}
           <math>
             <mi>n</mi>
-          </math>{" "}
-          is odd, the algorithm multiplies it by three and adds one. The algorithm repeats this process until{" "}
+          </math>{' '}
+          is odd, the algorithm multiplies it by three and adds one. The algorithm repeats this process until{' '}
           <math>
             <mi>n</mi>
-          </math>{" "}
+          </math>{' '}
           is one.
         </p>
         <p>
-          For example, the sequence for{" "}
+          For example, the sequence for{' '}
           <math>
             <mi>n</mi>
             <mo>=</mo>
             <mn>3</mn>
-          </math>{" "}
+          </math>{' '}
           is:
         </p>
         <p>
@@ -100,7 +100,7 @@ export default function Problem() {
         </p>
 
         <p>
-          Your task is to simulate the execution of the algorithm for a given value of{" "}
+          Your task is to simulate the execution of the algorithm for a given value of{' '}
           <math>
             <mi>n</mi>
           </math>
@@ -110,7 +110,7 @@ export default function Problem() {
         <div className="space-y-2">
           <h2 className="font-semibold text-zinc-100">Input</h2>
           <p>
-            The only input line contains an integer{" "}
+            The only input line contains an integer{' '}
             <math>
               <mi>n</mi>
             </math>
@@ -121,10 +121,10 @@ export default function Problem() {
         <div className="space-y-2">
           <h2 className="font-semibold text-zinc-100">Output</h2>
           <p>
-            Print a line that contains all values of{" "}
+            Print a line that contains all values of{' '}
             <math>
               <mi>n</mi>
-            </math>{" "}
+            </math>{' '}
             during the algorithm.
           </p>
         </div>
@@ -196,5 +196,5 @@ export default function Problem() {
         </div>
       </section>
     </div>
-  )
+  );
 }

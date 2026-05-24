@@ -1,64 +1,64 @@
-import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
-import { Link, useLoaderData } from "react-router"
+import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { Link, useLoaderData } from 'react-router';
 
-export const meta = () => [{ title: "Problems – YATO Judge" }]
+export const meta = () => [{ title: 'Problems – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => ({
   submissions: [
     {
-      id: "V2S175CT",
+      id: 'V2S175CT',
       problemId: 1,
-      problem: "Weird Algorithm",
-      user: "alice",
-      language: "C++ (C++23)",
-      result: "AC",
-      time: "1 ms",
-      memory: "1.2 MB",
+      problem: 'Weird Algorithm',
+      user: 'alice',
+      language: 'C++ (C++23)',
+      result: 'AC',
+      time: '1 ms',
+      memory: '1.2 MB',
     },
     {
-      id: "0RM88WLU",
+      id: '0RM88WLU',
       problemId: 2,
-      problem: "Missing Number",
-      user: "bob",
-      language: "Python",
-      result: "TLE",
-      time: "1000 ms",
-      memory: "—",
+      problem: 'Missing Number',
+      user: 'bob',
+      language: 'Python',
+      result: 'TLE',
+      time: '1000 ms',
+      memory: '—',
     },
     {
-      id: "FVHVEY6V",
+      id: 'FVHVEY6V',
       problemId: 3,
-      problem: "Repetitions",
-      user: "charlie",
-      language: "Rust",
-      result: "WA",
-      time: "34 ms",
-      memory: "2.8 MB",
+      problem: 'Repetitions',
+      user: 'charlie',
+      language: 'Rust',
+      result: 'WA',
+      time: '34 ms',
+      memory: '2.8 MB',
     },
     {
-      id: "MQBVZ186",
+      id: 'MQBVZ186',
       problemId: 4,
-      problem: "Increasing Array",
-      user: "diana",
-      language: "C++ (C++17)",
-      result: "CE",
-      time: "—",
-      memory: "—",
+      problem: 'Increasing Array',
+      user: 'diana',
+      language: 'C++ (C++17)',
+      result: 'CE',
+      time: '—',
+      memory: '—',
     },
   ],
-})
+});
 
 export default function Submissions() {
-  const { submissions } = useLoaderData()
+  const { submissions } = useLoaderData();
 
   const table = useReactTable({
     data: submissions,
     columns: [
       {
-        header: "Submission ID",
-        accessorKey: "id",
+        header: 'Submission ID',
+        accessorKey: 'id',
         cell: (info: any) => (
           <Link to={`/submissions/${info.getValue()}`} className="font-mono text-zinc-400 hover:underline">
             {info.getValue()}
@@ -66,52 +66,52 @@ export default function Submissions() {
         ),
       },
       {
-        header: "Problem ID",
-        accessorKey: "problemId",
+        header: 'Problem ID',
+        accessorKey: 'problemId',
         cell: (info: any) => <span className="font-mono text-zinc-400">{info.getValue()}</span>,
       },
       {
-        header: "Problem",
-        accessorKey: "problem",
+        header: 'Problem',
+        accessorKey: 'problem',
         cell: (info: any) => <span className="text-zinc-100">{info.getValue()}</span>,
       },
       {
-        header: "User",
-        accessorKey: "user",
+        header: 'User',
+        accessorKey: 'user',
         cell: (info: any) => <span className="text-zinc-300">{info.getValue()}</span>,
       },
       {
-        header: "Lang",
-        accessorKey: "language",
+        header: 'Lang',
+        accessorKey: 'language',
         cell: (info: any) => <span className="font-mono text-zinc-300">{info.getValue()}</span>,
       },
       {
-        header: "Result",
-        accessorKey: "result",
+        header: 'Result',
+        accessorKey: 'result',
         cell: (info: any) => {
-          const v = info.getValue()
+          const v = info.getValue();
           const color: Record<string, string> = {
-            AC: "text-emerald-400",
-            WA: "text-rose-400",
-            TLE: "text-purple-400",
-            CE: "text-amber-400",
-          }
-          return <span className={`font-mono ${color[v] ?? "text-zinc-400"}`}>{v}</span>
+            AC: 'text-emerald-400',
+            WA: 'text-rose-400',
+            TLE: 'text-purple-400',
+            CE: 'text-amber-400',
+          };
+          return <span className={`font-mono ${color[v] ?? 'text-zinc-400'}`}>{v}</span>;
         },
       },
       {
-        header: "Time",
-        accessorKey: "time",
+        header: 'Time',
+        accessorKey: 'time',
         cell: (info: any) => <span className="font-mono text-zinc-300">{info.getValue()}</span>,
       },
       {
-        header: "Memory",
-        accessorKey: "memory",
+        header: 'Memory',
+        accessorKey: 'memory',
         cell: (info: any) => <span className="font-mono text-zinc-300">{info.getValue()}</span>,
       },
     ],
     getCoreRowModel: getCoreRowModel(),
-  })
+  });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-800">
@@ -142,5 +142,5 @@ export default function Submissions() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }

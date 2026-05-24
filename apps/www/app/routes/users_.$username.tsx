@@ -1,16 +1,16 @@
-import { Link, useLoaderData } from "react-router"
+import { Link, useLoaderData } from 'react-router';
 
-export const meta = () => [{ title: "User – YATO Judge" }]
+export const meta = () => [{ title: 'User – YATO Judge' }];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => {
   const user = {
-    username: "rnduser114514",
-    displayName: "Random",
-    avatarUrl: "",
+    username: 'rnduser114514',
+    displayName: 'Random',
+    avatarUrl: '',
     joinedAt: new Date().toISOString(),
-    bio: "Lorem ipsum dolor sit amet.",
+    bio: 'Lorem ipsum dolor sit amet.',
     stats: {
       rating: 6767,
       globalRank: 67,
@@ -18,29 +18,29 @@ export const loader = async () => {
       submissions: 67,
       accepted: 67,
     },
-  }
+  };
 
   const recentSubmissions = [
-    { id: "QLH7QBWT", problem: "Example", verdict: "AC", time: new Date().toISOString() },
-    { id: "HSTAPSUI", problem: "Example", verdict: "WA", time: new Date().toISOString() },
-    { id: "NT3TYYQP", problem: "Example", verdict: "TLE", time: new Date().toISOString() },
-  ]
+    { id: 'QLH7QBWT', problem: 'Example', verdict: 'AC', time: new Date().toISOString() },
+    { id: 'HSTAPSUI', problem: 'Example', verdict: 'WA', time: new Date().toISOString() },
+    { id: 'NT3TYYQP', problem: 'Example', verdict: 'TLE', time: new Date().toISOString() },
+  ];
 
   const recentContests = [
-    { id: 7, title: "HIIT Open 2025", rank: 12 },
-    { id: 5, title: "Datatähti 2026 loppu", rank: 3 },
-  ]
+    { id: 7, title: 'HIIT Open 2025', rank: 12 },
+    { id: 5, title: 'Datatähti 2026 loppu', rank: 3 },
+  ];
 
   const problems = Array.from({ length: 100 }, (_, i) => {
-    const rnd = Math.random()
+    const rnd = Math.random();
 
-    return { id: i + 1, status: rnd < 0.33 ? "ac" : rnd < 0.67 ? "attempted" : "untried" }
-  })
+    return { id: i + 1, status: rnd < 0.33 ? 'ac' : rnd < 0.67 ? 'attempted' : 'untried' };
+  });
 
-  const total = problems.length
-  const acCount = problems.filter((p) => p.status === "ac").length
-  const attemptedCount = problems.filter((p) => p.status === "attempted").length
-  const untriedCount = total - acCount - attemptedCount
+  const total = problems.length;
+  const acCount = problems.filter((p) => p.status === 'ac').length;
+  const attemptedCount = problems.filter((p) => p.status === 'attempted').length;
+  const untriedCount = total - acCount - attemptedCount;
 
   return {
     user,
@@ -51,12 +51,12 @@ export const loader = async () => {
     acCount,
     attemptedCount,
     untriedCount,
-  }
-}
+  };
+};
 
 export default function User() {
   const { user, recentSubmissions, recentContests, problems, total, acCount, attemptedCount, untriedCount } =
-    useLoaderData()
+    useLoaderData();
 
   return (
     <div className="space-y-10">
@@ -194,11 +194,11 @@ export default function User() {
                 key={p.id}
                 title={`Problem ${p.id}`}
                 className={`flex h-8 items-center justify-center rounded text-xs font-mono ${
-                  p.status === "ac"
-                    ? "bg-emerald-500/80 text-emerald-950"
-                    : p.status === "attempted"
-                      ? "bg-yellow-500/30 text-yellow-200"
-                      : "bg-zinc-800 text-zinc-500"
+                  p.status === 'ac'
+                    ? 'bg-emerald-500/80 text-emerald-950'
+                    : p.status === 'attempted'
+                      ? 'bg-yellow-500/30 text-yellow-200'
+                      : 'bg-zinc-800 text-zinc-500'
                 }`}>
                 {p.id}
               </div>
@@ -207,5 +207,5 @@ export default function User() {
         </div>
       </section>
     </div>
-  )
+  );
 }

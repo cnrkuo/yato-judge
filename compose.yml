@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: docker.io/postgres:18-trixie
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: postgresDevPassw0rd
+      POSTGRES_DB: yato_judge_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - "postgres_data:/var/lib/postgresql"
+    networks:
+      - dev_network
+
+  rabbitmq:
+    image: docker.io/rabbitmq:4-management
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: rabbitmqDevPassw0rd
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - "rabbitmq_data:/var/lib/rabbitmq"
+    networks:
+      - dev_network
+
+  rustfs:
+    image: docker.io/rustfs/rustfs:alpha
+    restart: unless-stopped
+    environment:
+      RUSTFS_ROOT_USER: admin
+      RUSTFS_ROOT_PASSWORD: rustfsDevPassw0rd
+      RUSTFS_ACCESS_KEY: rustfsDevAccessK3y
+      RUSTFS_SECRET_KEY: rustfsDevSecretK3y
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - "rustfs_data:/data"
+    networks:
+      - dev_network
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  rustfs_data:
+    driver: local
+
+networks:
+  dev_network:
+    driver: bridge

@@ -1,18 +1,18 @@
-import { Link, useLocation } from "react-router"
+import { Link, useLocation } from 'react-router';
 
 export default function Header() {
-  const { pathname } = useLocation()
+  const { pathname } = useLocation();
 
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/85 backdrop-blur">
       <div className="overflow-x-auto mx-auto flex h-12 max-w-6xl items-center px-4 gap-8">
-        {pathname === "/" ? (
+        {pathname === '/' ? (
           <span className="select-none hover:cursor-not-allowed">🦆</span>
         ) : (
           <button
             className="hover:cursor-pointer"
             onClick={() => {
-              window.location.href = "/"
+              window.location.href = '/';
             }}
             type="button"
             aria-label="回到首頁">
@@ -48,5 +48,5 @@ export default function Header() {
         </div>
       </div>
     </header>
-  )
+  );
 }

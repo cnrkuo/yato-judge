@@ -1,45 +1,45 @@
-import { Link, useLoaderData } from "react-router"
+import { Link, useLoaderData } from 'react-router';
 
 export const meta = (/* {}: Route.MetaArgs */) => [
-  { title: "YATO Judge" },
-  { name: "description", content: "Yet another trash-like online judge." },
-]
+  { title: 'YATO Judge' },
+  { name: 'description', content: 'Yet another trash-like online judge.' },
+];
 
 // TODO: replace fake data with API calling
 // TODO: add types
 export const loader = async () => ({
   topCoders: [
-    { user: "alice", solved: 777 },
-    { user: "bob", solved: 666 },
-    { user: "charlie", solved: 555 },
+    { user: 'alice', solved: 777 },
+    { user: 'bob', solved: 666 },
+    { user: 'charlie', solved: 555 },
   ],
   recentSubmissions: [
     {
-      id: "FSWJXTSD",
-      user: "alice",
-      problem: "Weird Algorithm",
-      result: "AC",
-      color: "text-emerald-400",
+      id: 'FSWJXTSD',
+      user: 'alice',
+      problem: 'Weird Algorithm',
+      result: 'AC',
+      color: 'text-emerald-400',
     },
     {
-      id: "7F3MOH08",
-      user: "bob",
-      problem: "Missing Number",
-      result: "TLE",
-      color: "text-purple-400",
+      id: '7F3MOH08',
+      user: 'bob',
+      problem: 'Missing Number',
+      result: 'TLE',
+      color: 'text-purple-400',
     },
     {
-      id: "FIT42OQP",
-      user: "charlie",
-      problem: "Repetitions",
-      result: "WA",
-      color: "text-red-400",
+      id: 'FIT42OQP',
+      user: 'charlie',
+      problem: 'Repetitions',
+      result: 'WA',
+      color: 'text-red-400',
     },
   ],
-})
+});
 
 export default function Home() {
-  const { topCoders, recentSubmissions } = useLoaderData()
+  const { topCoders, recentSubmissions } = useLoaderData();
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -74,7 +74,7 @@ export default function Home() {
             <tbody>
               <tr className="border-b border-zinc-800">
                 <td className="px-3 py-2">C++</td>
-                <td className="px-3 py-2 font-mono">G++</td>
+                <td className="px-3 py-2">G++</td>
                 <td className="px-3 py-2">
                   <span className="font-mono">14.2.0</span>
                   <span className="ml-2 text-xs text-zinc-500">(C++23, C++17, C++11)</span>
@@ -204,8 +204,8 @@ export default function Home() {
             </li>
 
             <li className="flex items-center justify-between px-4 py-3 text-sm">
-              <span className="font-mono text-zinc-400">RNG</span>
-              <span className="text-zinc-400">Running</span>
+              <span className="font-mono text-zinc-400">WJ</span>
+              <span className="text-zinc-400">Waiting for Judging</span>
             </li>
 
             <li className="flex items-center justify-between px-4 py-3 text-sm">
@@ -216,5 +216,5 @@ export default function Home() {
         </div>
       </aside>
     </div>
-  )
+  );
 }
