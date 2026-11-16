@@ -47,9 +47,11 @@ jobs:
       BUILD_CA_CERT: ""
     steps:
       - uses: actions/checkout@v7
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Production
         run: sh docker/prod.sh
-      - name: Judge self-test inside the image
+      - name: Self-test
         run: >
           docker compose -f compose.prod.yaml --env-file .env.production
           run --rm --no-deps -T judge judge-selftest
