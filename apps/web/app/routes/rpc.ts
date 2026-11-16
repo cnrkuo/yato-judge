@@ -8,7 +8,8 @@ import type { Route } from './+types/rpc';
  * The browser cannot reach the API and must not hold the session token, so
  * it calls `/rpc/<namespace>/<procedure>` here. This route attaches the
  * token from the http-only cookie and relays the call unchanged; validation
- * and authorization still happen in the API.
+ * and authorization still happen in the API. Responses are passed on as
+ * they arrive, so event streams work like any other call.
  */
 
 /** Sessions are managed by form actions; judges do not go through the site. */
@@ -38,6 +39,9 @@ export async function action({ request, params }: Route.ActionArgs) {
     body: request.body,
     // Required by fetch when the body is a stream.
     duplex: 'half',
+    // A browser that goes away takes its upstream call with it — what ends
+    // an event stream (`submission.watch`) nobody reads any more.
+    signal: request.signal,
   } as RequestInit);
 
   const relayed = new Headers({ 'Cache-Control': 'no-store' });

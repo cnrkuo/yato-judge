@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Language } from '@yato/contract';
+import { type Language, Verdict } from '@yato/contract';
 import { sha256 } from '../../common/crypto.js';
 import { NotFoundError, UnauthorizedError } from '../../common/errors.js';
 import type { JudgeTaskMessage, WriteCommand } from '../../messaging/commands.js';
@@ -7,6 +7,7 @@ import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { StorageService } from '../../storage/storage.service.js';
 import { ProblemRepository } from '../problem/problem.repository.js';
 import type { JudgeReport } from '../submission/judging.js';
+import { SubmissionEvents } from '../submission/submission.events.js';
 import { SubmissionRepository, type SubmissionRow } from '../submission/submission.repository.js';
 import { JudgeRepository, type JudgeRow } from './judge.repository.js';
 
@@ -26,6 +27,7 @@ export class JudgeService {
     private readonly problems: ProblemRepository,
     private readonly storage: StorageService,
     private readonly broker: MessageBroker,
+    private readonly events: SubmissionEvents,
   ) {}
 
   /** Judge machines authenticate with their own token, not a user session. */
@@ -61,6 +63,7 @@ export class JudgeService {
       deferred.add(task.submissionId);
     }
     if (!submission) return { task: null };
+    this.events.changed(submission.id);
 
     const [found, testcases] = await Promise.all([
       this.problems.findById(submission.problemId),
@@ -94,6 +97,21 @@ export class JudgeService {
     const hash = kind === 'input' ? testcase.inputSha256 : testcase.outputSha256;
     const data = await this.storage.get(StorageService.testdataKey(testcase.problemId, hash));
     return new File([new Uint8Array(data)], `${testcase.id}.${kind}`, { type: 'application/octet-stream' });
+  }
+
+  /**
+   * Passes one finished testcase on to whoever is watching the submission.
+   * Only the judge the submission is currently claimed by is listened to;
+   * anything else (a judge that was timed out, a rejudged submission) is
+   * dropped without complaint.
+   */
+  async progress(
+    judge: JudgeRow,
+    input: { submissionId: number; total: number; result: JudgeReport['results'][number] & { ordinal: number } },
+  ): Promise<void> {
+    const submission = await this.submissions.findById(input.submissionId);
+    if (submission?.judgeId !== judge.id || submission.verdict !== Verdict.JUDGING) return;
+    this.events.progress(submission.id, input.total, input.result);
   }
 
   /**

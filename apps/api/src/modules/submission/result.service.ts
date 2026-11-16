@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProblemRepository } from '../problem/problem.repository.js';
 import { type JudgeReport, judgedResult } from './judging.js';
+import { SubmissionEvents } from './submission.events.js';
 import { SubmissionRepository } from './submission.repository.js';
 
 /** Stores judges' reports as verdicts and scores. Called by the write-queue consumer. */
@@ -11,6 +12,7 @@ export class SubmissionResultService {
   constructor(
     private readonly submissions: SubmissionRepository,
     private readonly problems: ProblemRepository,
+    private readonly events: SubmissionEvents,
   ) {}
 
   async record(judgeId: number, report: JudgeReport): Promise<void> {
@@ -27,6 +29,8 @@ export class SubmissionResultService {
     if (!(await this.submissions.saveResult(submission.id, judgeId, result))) {
       // Rejudged or reclaimed by another judge in the meantime; drop it.
       this.logger.warn(`Discarded stale result for submission ${submission.id} from judge #${judgeId}`);
+      return;
     }
+    this.events.changed(submission.id);
   }
 }

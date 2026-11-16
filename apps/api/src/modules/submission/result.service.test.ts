@@ -1,6 +1,6 @@
 import { ScoreMode, Verdict } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
-import { fake } from '../../testing/fixtures.js';
+import { fake, localEvents } from '../../testing/fixtures.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import { SubmissionResultService } from './result.service.js';
 import type { JudgedResult, SubmissionRepository } from './submission.repository.js';
@@ -13,6 +13,9 @@ const report = {
 
 function service(submission: { id: number; problemId: number } | undefined, stillClaimed = true) {
   const saved: [number, number, JudgedResult][] = [];
+  const changes: unknown[] = [];
+  const events = localEvents();
+  if (submission) events.listen(submission.id, (event) => changes.push(event));
   const results = new SubmissionResultService(
     fake<SubmissionRepository>({
       findById: async () => submission,
@@ -25,8 +28,9 @@ function service(submission: { id: number; problemId: number } | undefined, stil
       findById: async () => ({ problem: { scoreMode: ScoreMode.AVERAGE, scoreGroups: [] } }),
       listTestcases: async () => [{ id: 1, ordinal: 0 }],
     }),
+    events,
   );
-  return { results, saved };
+  return { results, saved, changes };
 }
 
 describe('SubmissionResultService.record', () => {
@@ -45,6 +49,14 @@ describe('SubmissionResultService.record', () => {
   });
 
   it('tolerates a stale report (the submission was rejudged meanwhile)', async () => {
-    await expect(service({ id: 5, problemId: 2 }, false).results.record(9, report)).resolves.toBeUndefined();
+    const { results, changes } = service({ id: 5, problemId: 2 }, false);
+    await expect(results.record(9, report)).resolves.toBeUndefined();
+    expect(changes).toEqual([]);
+  });
+
+  it('tells watchers once a result is stored', async () => {
+    const { results, changes } = service({ id: 5, problemId: 2 });
+    await results.record(9, report);
+    expect(changes).toEqual([{ kind: 'changed' }]);
   });
 });

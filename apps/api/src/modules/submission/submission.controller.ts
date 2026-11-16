@@ -3,7 +3,7 @@ import { Implement, implement } from '@orpc/nest';
 import { contract } from '@yato/contract';
 import type { Actor } from '../../common/actor.js';
 import { CurrentActor } from '../../common/auth.guard.js';
-import { OK } from '../../common/orpc.js';
+import { OK, withTypedErrors } from '../../common/orpc.js';
 import { SubmissionService } from './submission.service.js';
 
 const os = implement(contract.submission);
@@ -18,6 +18,11 @@ export class SubmissionController {
       create: os.create.handler(({ input }) => this.submissions.create(actor, input)),
       list: os.list.handler(({ input }) => this.submissions.list(actor, input)),
       get: os.get.handler(({ input }) => this.submissions.get(actor, input.id)),
+      watch: os.watch.handler(async ({ input, signal }) => {
+        // Refuse with a proper status while there still is one to send.
+        await this.submissions.get(actor, input.id);
+        return withTypedErrors(this.submissions.watch(actor, input.id, signal));
+      }),
       rejudge: os.rejudge.handler(async ({ input }) => {
         await this.submissions.rejudge(actor, input.id);
         return OK;

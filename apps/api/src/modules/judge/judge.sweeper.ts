@@ -2,6 +2,7 @@ import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } fro
 import { config } from '../../config.js';
 import type { JudgeTaskMessage } from '../../messaging/commands.js';
 import { MessageBroker, Queue } from '../../messaging/message-broker.js';
+import { SubmissionEvents } from '../submission/submission.events.js';
 import { SubmissionRepository } from '../submission/submission.repository.js';
 
 const SWEEP_INTERVAL_MS = 30_000;
@@ -26,6 +27,7 @@ export class JudgeSweeper implements OnModuleInit, OnApplicationShutdown {
   constructor(
     private readonly broker: MessageBroker,
     private readonly submissions: SubmissionRepository,
+    private readonly events: SubmissionEvents,
   ) {}
 
   onModuleInit(): void {
@@ -40,6 +42,7 @@ export class JudgeSweeper implements OnModuleInit, OnApplicationShutdown {
   async sweep(): Promise<void> {
     try {
       const stale = await this.submissions.releaseStale(new Date(Date.now() - config.judgeTimeoutSec * 1000));
+      for (const id of stale) this.events.changed(id);
       let orphans: number[] = [];
       if ((await this.broker.depth(Queue.JUDGE)) === 0) {
         orphans = await this.submissions.waitingIds(new Date(Date.now() - ORPHAN_GRACE_MS), 1000);

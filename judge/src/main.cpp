@@ -230,7 +230,20 @@ int main(int argc, char** argv) {
                                          task->language.c_str(), task->testcases.size()));
         judge::Report report;
         try {
-          report = runner.judge(*task);
+          // Live progress is a courtesy to whoever watches the submission:
+          // after the first failure (an older API, a network blip) the rest
+          // of this run goes unannounced rather than slowed down.
+          bool announce = true;
+          const int total = static_cast<int>(task->testcases.size());
+          report = runner.judge(*task, [&](const judge::Testcase& testcase, const judge::TestResult& result) {
+            if (!announce) return;
+            try {
+              api.progress(task->submission_id, testcase.ordinal, total, result);
+            } catch (const judge::ApiError& error) {
+              announce = false;
+              judge::log("WARN", std::string("progress not reported: ") + error.what());
+            }
+          });
         } catch (const std::exception& error) {
           // Infrastructure trouble (e.g. testdata download); tell the API so
           // the submission is not left hanging until the claim times out.

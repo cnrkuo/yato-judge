@@ -288,3 +288,22 @@ TEST_CASE("a checker's content hash is only trusted when it is one") {
   task.checker = judge::CheckerSource{.sha256 = "../../etc/passwd", .source = kSplitChecker};
   CHECK_THROWS_AS(bench.runner.judge(task), judge::ApiError);
 }
+
+TEST_CASE("the runner announces each testcase as it finishes") {
+  Bench bench("runner-progress");
+  std::vector<std::pair<int, Verdict>> seen;
+  const Report report = bench.runner.judge(bench.task("py3", "print(3)", kSums),
+                                           [&](const judge::Testcase& testcase, const judge::TestResult& result) {
+                                             CHECK(result.testcase_id == testcase.id);
+                                             seen.emplace_back(testcase.ordinal, result.verdict);
+                                           });
+  CHECK(seen == std::vector<std::pair<int, Verdict>>{{0, Verdict::Accepted}, {1, Verdict::WrongAnswer}});
+  CHECK(report.results.size() == 2);
+
+  // Nothing ran, nothing to announce.
+  seen.clear();
+  bench.runner.judge(
+      bench.task("c", "int main(void) { return undefined_name; }", kSums),
+      [&](const judge::Testcase&, const judge::TestResult&) { seen.emplace_back(0, Verdict::Accepted); });
+  CHECK(seen.empty());
+}

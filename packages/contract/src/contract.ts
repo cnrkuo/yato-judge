@@ -1,4 +1,4 @@
-import { oc, populateContractRouterPaths } from '@orpc/contract';
+import { eventIterator, oc, populateContractRouterPaths } from '@orpc/contract';
 // `schemas.js` loads the ArkType configuration before `arktype` itself.
 import { type } from 'arktype';
 import * as s from './schemas.js';
@@ -57,6 +57,12 @@ const submission = {
   create: base.input(s.SubmitInputSchema).output(created),
   list: base.input(s.SubmissionListInputSchema).output(s.paged(s.SubmissionSummarySchema)),
   get: base.input(byId).output(s.SubmissionSchema),
+  /**
+   * Server-sent events about one submission: a snapshot at once, each
+   * testcase as a judge finishes it, and a snapshot whenever the stored
+   * submission changes. Ends by itself once the submission has a verdict.
+   */
+  watch: base.input(byId).output(eventIterator(s.SubmissionEventSchema)),
   rejudge: base.input(byId).output(s.OkSchema),
   rejudgeProblem: base.input(byProblem).output(type({ count: 'number.integer' })),
   /** Judges' note on a submission; may also override the verdict by hand. */
@@ -126,6 +132,11 @@ const judge = {
     .output(type({ task: s.JudgeTaskSchema.or('null') })),
   /** Raw bytes of one testcase file. */
   testdata: base.input(type({ testcaseId: 'number.integer', kind: "'input' | 'output'" })).output(s.FileSchema),
+  /**
+   * Optional, after each testcase: lets pages watching the submission show
+   * it at once. Nothing is stored; a judge may skip it or ignore its failure.
+   */
+  progress: base.input(s.JudgeProgressInputSchema).output(s.OkSchema),
   report: base.input(s.JudgeReportInputSchema).output(s.OkSchema),
 };
 

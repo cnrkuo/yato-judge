@@ -5,13 +5,16 @@ import { UnauthorizedError } from '../../common/errors.js';
 import type { JudgeTaskMessage } from '../../messaging/commands.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import type { StorageService } from '../../storage/storage.service.js';
+import { localEvents } from '../../testing/fixtures.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
+import type { SubmissionBusEvent } from '../submission/submission.events.js';
 import type { SubmissionRepository } from '../submission/submission.repository.js';
 import type { JudgeRepository, JudgeRow } from './judge.repository.js';
 import { JudgeService } from './judge.service.js';
 
 /** In-memory stand-ins for the queue and the tables `fetch` touches. */
 function setup(waiting: { id: number; language: string }[], checker = '') {
+  const events = localEvents();
   const queue: JudgeTaskMessage[] = waiting.map(({ id }) => ({ submissionId: id }));
   const rows = new Map(waiting.map((s) => [s.id, { ...s, problemId: 1, code: '', verdict: Verdict.WAIT as number }]));
   const seen: { judgeId: number; languages?: readonly string[] }[] = [];
@@ -37,8 +40,15 @@ function setup(waiting: { id: number; language: string }[], checker = '') {
     listTestcases: async () => [],
   } as unknown as ProblemRepository;
 
-  const service = new JudgeService(judges, submissions, problems, {} as StorageService, broker);
-  return { service, queue, seen };
+  const submissionsWithLookup = {
+    ...submissions,
+    findById: async (id: number) => {
+      const row = rows.get(id);
+      return row && { ...row, judgeId: row.verdict === Verdict.JUDGING ? judge.id : null };
+    },
+  } as unknown as SubmissionRepository;
+  const service = new JudgeService(judges, submissionsWithLookup, problems, {} as StorageService, broker, events);
+  return { service, queue, seen, events };
 }
 
 const judge = { id: 7 } as JudgeRow;
@@ -96,6 +106,35 @@ describe('JudgeService.fetch', () => {
   });
 });
 
+describe('JudgeService.progress', () => {
+  const result = { testcaseId: 4, ordinal: 0, verdict: Verdict.AC, timeMs: 3, memoryKb: 10, score: 1, message: '' };
+  const heard = (events: ReturnType<typeof localEvents>, id: number) => {
+    const log: SubmissionBusEvent[] = [];
+    events.listen(id, (event) => log.push(event));
+    return log;
+  };
+
+  it('tells watchers a submission was claimed, then each testcase its judge finishes', async () => {
+    const { service, events } = setup([{ id: 1, language: 'cpp' }]);
+    const log = heard(events, 1);
+    await service.fetch(judge);
+    await service.progress(judge, { submissionId: 1, total: 3, result });
+    expect(log).toEqual([{ kind: 'changed' }, { kind: 'progress', total: 3, result }]);
+  });
+
+  it('ignores progress from a judge that does not hold the claim', async () => {
+    const { service, events } = setup([{ id: 1, language: 'cpp' }]);
+    const log = heard(events, 1);
+    // Not claimed yet.
+    await service.progress(judge, { submissionId: 1, total: 3, result });
+    await service.fetch(judge);
+    // Claimed, by another judge.
+    await service.progress({ id: 8 } as JudgeRow, { submissionId: 1, total: 3, result });
+    await service.progress(judge, { submissionId: 99, total: 3, result });
+    expect(log).toEqual([{ kind: 'changed' }]);
+  });
+});
+
 describe('JudgeService.authenticate', () => {
   const service = (judge?: { id: number; enabled: boolean }) =>
     new JudgeService(
@@ -104,6 +143,7 @@ describe('JudgeService.authenticate', () => {
       {} as ProblemRepository,
       {} as StorageService,
       {} as MessageBroker,
+      localEvents(),
     );
 
   it('accepts an enabled judge and refuses unknown, disabled or missing tokens', async () => {

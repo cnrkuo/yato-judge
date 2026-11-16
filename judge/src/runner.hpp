@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <variant>
@@ -30,8 +31,11 @@ class Runner {
  public:
   Runner(const Config& config, ApiClient& api) : config_(config), api_(api) {}
 
+  /** Called after each testcase with its result, while the rest still run. */
+  using Progress = std::function<void(const Testcase&, const TestResult&)>;
+
   /** Never throws for problems with the submission; those become verdicts. */
-  Report judge(const Task& task);
+  Report judge(const Task& task, const Progress& progress = {});
 
   /**
    * Compiles and runs a hello-world program in `language` inside the

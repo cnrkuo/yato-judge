@@ -22,6 +22,10 @@ export class JudgeController {
         await this.judge.authenticate(token);
         return this.judge.testdata(input.testcaseId, input.kind);
       }),
+      progress: os.progress.handler(async ({ input }) => {
+        await this.judge.progress(await this.judge.authenticate(token), input);
+        return OK;
+      }),
       report: os.report.handler(async ({ input }) => {
         await this.judge.report(await this.judge.authenticate(token), input);
         return OK;

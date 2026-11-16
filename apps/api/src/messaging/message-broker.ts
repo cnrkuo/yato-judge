@@ -19,12 +19,26 @@ export const Queue = {
 } as const;
 export type Queue = (typeof Queue)[keyof typeof Queue];
 
+/**
+ * Topic exchange for things that are happening right now (a testcase was
+ * judged, a verdict changed). Unlike the queues it keeps nothing: an event is
+ * delivered to whoever is subscribed at that moment and then gone, so events
+ * may only ever repeat or hint at what the database holds.
+ */
+export const EVENTS_EXCHANGE = 'yato.events';
+
 export type MessageHandler = (payload: unknown) => Promise<void>;
+export type EventHandler = (routingKey: string, payload: unknown) => void;
 
 interface Consumer {
   queue: Queue;
   prefetch: number;
   handler: MessageHandler;
+}
+
+interface Subscription {
+  pattern: string;
+  handler: EventHandler;
 }
 
 /** How long a publish waits for a broker connection before giving up. */
@@ -37,13 +51,16 @@ const CONNECT_WAIT_MS = 5000;
  *   persisted, so callers may treat a resolved publish as durable.
  * - `consume` runs a handler with bounded concurrency (`prefetch`). A message
  *   whose handler throws is retried once and then dead-lettered.
- * - The connection recovers by itself; topology and consumers are re-created
- *   after every reconnect.
+ * - `announce` and `subscribe` are the opposite of the queues: live events
+ *   on a topic exchange, best effort, every subscribed API instance gets each.
+ * - The connection recovers by itself; topology, consumers and subscriptions
+ *   are re-created after every reconnect.
  */
 @Injectable()
 export class MessageBroker implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(MessageBroker.name);
   private readonly consumers: Consumer[] = [];
+  private readonly subscriptions: Subscription[] = [];
   private connection?: RecoveringChannelModel;
   /** The live connection, while there is one. */
   private model?: ChannelModel;
@@ -98,8 +115,10 @@ export class MessageBroker implements OnModuleInit, OnApplicationShutdown {
       arguments: { 'x-dead-letter-exchange': '', 'x-dead-letter-routing-key': Queue.DEAD },
     });
     await channel.assertQueue(Queue.JUDGE, { durable: true });
+    await channel.assertExchange(EVENTS_EXCHANGE, 'topic', { durable: false });
 
     for (const consumer of this.consumers) await this.startConsumer(model, consumer);
+    for (const subscription of this.subscriptions) await this.startSubscription(model, subscription);
     this.model = model;
     this.channel = channel;
     this.markReady();
@@ -129,6 +148,29 @@ export class MessageBroker implements OnModuleInit, OnApplicationShutdown {
         }
       })();
     });
+  }
+
+  /**
+   * Each subscription reads from a queue of its own that lives and dies with
+   * this connection, so every API instance sees every matching event.
+   */
+  private async startSubscription(model: ChannelModel, { pattern, handler }: Subscription): Promise<void> {
+    const channel = await model.createChannel();
+    channel.on('error', (error: Error) => this.logger.error(`RabbitMQ event error (${pattern}): ${error.message}`));
+    const { queue } = await channel.assertQueue('', { exclusive: true, autoDelete: true, durable: false });
+    await channel.bindQueue(queue, EVENTS_EXCHANGE, pattern);
+    await channel.consume(
+      queue,
+      (message: ConsumeMessage | null) => {
+        if (!message) return;
+        try {
+          handler(message.fields.routingKey, JSON.parse(message.content.toString('utf8')));
+        } catch (error) {
+          this.logger.warn(`Dropped an event (${message.fields.routingKey}): ${String(error)}`);
+        }
+      },
+      { noAck: true },
+    );
   }
 
   /** Waits briefly for a connection; fails with 503 when the broker stays away. */
@@ -171,6 +213,34 @@ export class MessageBroker implements OnModuleInit, OnApplicationShutdown {
     if (this.model) {
       void this.startConsumer(this.model, consumer).catch((error: Error) =>
         this.logger.error(`Cannot start the ${queue} consumer: ${error.message}`),
+      );
+    }
+  }
+
+  /**
+   * Sends a live event to whoever is subscribed right now. Never waits and
+   * never fails: without a broker connection the event is simply not sent.
+   */
+  announce(routingKey: string, payload: unknown): void {
+    try {
+      this.channel?.publish(EVENTS_EXCHANGE, routingKey, Buffer.from(JSON.stringify(payload)), {
+        contentType: 'application/json',
+      });
+    } catch (error) {
+      this.logger.warn(`Could not announce ${routingKey}: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Listens for live events whose routing key matches `pattern` (AMQP topic
+   * syntax: `submission.*`). Call from `onModuleInit`, like `consume`.
+   */
+  subscribe(pattern: string, handler: EventHandler): void {
+    const subscription = { pattern, handler };
+    this.subscriptions.push(subscription);
+    if (this.model) {
+      void this.startSubscription(this.model, subscription).catch((error: Error) =>
+        this.logger.error(`Cannot subscribe to ${pattern}: ${error.message}`),
       );
     }
   }

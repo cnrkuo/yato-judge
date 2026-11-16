@@ -316,6 +316,19 @@ export const SubmissionSchema = SubmissionSummarySchema.merge({
   canRejudge: 'boolean',
 });
 
+/** What `submission.watch` streams while a submission is being judged. */
+export const SubmissionEventSchema = type({
+  /** The submission as `submission.get` returns it: first, and whenever it changes. */
+  type: "'snapshot'",
+  submission: SubmissionSchema,
+}).or({
+  /** One testcase the judge has finished; the final results come with a snapshot. */
+  type: "'progress'",
+  /** Testcases in this run. */
+  total: 'number.integer',
+  result: TestResultSchema,
+});
+
 export const SubmitInputSchema = type({
   problemId: IdSchema,
   language: LanguageSchema,
@@ -547,6 +560,14 @@ export const JudgeTestResultSchema = type({
   memoryKb: 'number.integer >= 0',
   score: '0 <= number <= 1',
   message: type('string <= 4096').default(''),
+});
+
+/** One finished testcase of a run still in progress; `judge.report` remains the result. */
+export const JudgeProgressInputSchema = type({
+  submissionId: 'number.integer',
+  /** Testcases in this run. */
+  total: 'number.integer >= 1',
+  result: JudgeTestResultSchema.merge({ ordinal: 'number.integer >= 0' }),
 });
 
 export const JudgeReportInputSchema = type({
