@@ -19,8 +19,8 @@ import type { loader as rootLoader } from '~/root';
 import { type ButtonVariant, css, type Tone, type VerdictKind } from './classes';
 import { Tip } from './overlays';
 
-export { css };
 export type { Tone };
+export { css };
 
 type Gap = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 interface BoxProps {

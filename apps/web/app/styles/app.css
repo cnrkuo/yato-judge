@@ -404,7 +404,6 @@ blockquote {
   margin-bottom: 1rem;
 }
 .oj-prose math {
-  /* biome-ignore lint/a11y/useGenericFontNames: `math` is the generic family (CSS Fonts 4). */
   font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "YATO Math", math;
   font-size: 1.1em;
 }

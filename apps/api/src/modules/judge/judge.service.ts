@@ -33,7 +33,7 @@ export class JudgeService {
   /** Judge machines authenticate with their own token, not a user session. */
   async authenticate(token: string | undefined): Promise<JudgeRow> {
     const judge = token ? await this.judges.findByTokenHash(sha256(token)) : undefined;
-    if (!judge || !judge.enabled) throw new UnauthorizedError('Invalid judge token');
+    if (!judge?.enabled) throw new UnauthorizedError('Invalid judge token');
     return judge;
   }
 

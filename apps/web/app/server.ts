@@ -1,9 +1,9 @@
 import { isIP } from 'node:net';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
-import { trimTrailingSlash } from 'hono/trailing-slash';
 import { compress } from 'hono/compress';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
+import { trimTrailingSlash } from 'hono/trailing-slash';
 import { createHonoServer } from 'react-router-hono-server/node';
 
 function trusted(address: string | undefined): boolean {
