@@ -1,6 +1,10 @@
-.idea/
-.turbo/
-
 node_modules/
-
+dist/
+build/
+.react-router/
 .env
+*.tsbuildinfo
+data/
+judge/config.json
+.env.production
+compose.override.yaml

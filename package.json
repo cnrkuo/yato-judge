@@ -1,26 +1,39 @@
 {
-  "name": "yato",
+  "name": "yato-judge",
   "private": true,
-  "scripts": {
-    "build": "turbo build",
-    "start": "turbo start",
-    "check": "biome check --write",
-    "dev": "turbo dev"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.3.13",
-    "turbo": "^2.9.7"
-  },
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
   "devEngines": {
     "runtime": {
       "name": "node",
-      "version": "^24.15.0",
+      "version": "^26.13.1",
       "onFail": "download"
     },
     "packageManager": {
       "name": "pnpm",
-      "version": "^11.1.3"
+      "version": "^12.21.0"
     }
   },
-  "packageManager": "pnpm@11.1.3+sha512.c85357fe17ca12dd23dd7071 822666dfd7e3cb76fe214e3370b5ea2fb34f2a231185509b63e717f3cd0acb38dd3f8d82bcd5e8172400ae678b70ea4fbed0896d"
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "dev:contract": "pnpm --filter @yato/contract dev",
+    "dev:api": "pnpm --filter @yato/api dev",
+    "dev:web": "pnpm --filter @yato/web dev",
+    "db:generate": "pnpm --filter @yato/api db:generate",
+    "build:judge": "cmake -S judge -B judge/build -DCMAKE_BUILD_TYPE=Release && cmake --build judge/build -j",
+    "docker:dev": "docker compose up --build",
+    "docker:prod": "sh docker/prod.sh",
+    "docker:prod:down": "docker compose -f compose.prod.yaml --env-file .env.production down",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "lint:judge": "run-clang-tidy -p judge/build -quiet 'judge/(src|tests)/' && clang-format --dry-run --Werror judge/src/*.cpp judge/src/*.hpp judge/tests/*.cpp",
+    "format:judge": "clang-format -i judge/src/*.cpp judge/src/*.hpp judge/tests/*.cpp",
+    "test:e2e": "pnpm --filter @yato/web test:e2e"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.13"
+  }
 }

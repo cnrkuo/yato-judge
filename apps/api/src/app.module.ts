@@ -1,51 +1,41 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { REQUEST } from '@nestjs/core';
-import { ORPCError, ORPCModule, onError } from '@orpc/nest';
-import { experimental_RethrowHandlerPlugin } from '@orpc/server/plugins';
-import type { FastifyRequest } from 'fastify';
-import { LoggerModule } from 'nestjs-pino';
-import * as v from 'valibot';
+import { APP_GUARD } from '@nestjs/core';
+import { ORPCModule } from '@orpc/nest';
+import { AuthGuard } from './common/auth.guard.js';
+import { orpcConfig } from './common/orpc.js';
+import { DatabaseModule } from './database/database.module.js';
+import { PersistenceModule } from './database/persistence.module.js';
+import { MessagingModule } from './messaging/messaging.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { BoardModule } from './modules/board/board.module.js';
+import { ContestModule } from './modules/contest/contest.module.js';
+import { JudgeModule } from './modules/judge/judge.module.js';
+import { ProblemModule } from './modules/problem/problem.module.js';
+import { SubmissionModule } from './modules/submission/submission.module.js';
+import { UserModule } from './modules/user/user.module.js';
+import { StorageModule } from './storage/storage.module.js';
 
-import { DatabaseModule } from '$/database/database.module.js';
-import { SubmissionsModule } from '$/submissions/submissions.module.js';
-
+/**
+ * Layering: Controller (oRPC contract, transport) -> Service (business rules,
+ * authorization) -> Repository (Drizzle queries). See docs/architecture.md.
+ */
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate: (config) =>
-        v.safeParse(
-          v.object({
-            NODE_ENV: v.picklist(['development', 'production', 'test']),
-            DATABASE_URL: v.pipe(v.string(), v.url()),
-            RABBITMQ_URL: v.pipe(v.string(), v.url()),
-          }),
-          config,
-        ),
-    }),
-    ORPCModule.forRootAsync({
-      useFactory: (request: FastifyRequest) => ({
-        interceptors: [
-          onError((err) => {
-            request.log.error({ err }, 'oRPC error');
-          }),
-        ],
-        context: { request },
-        plugins: [
-          new experimental_RethrowHandlerPlugin({
-            filter: (err) => !(err instanceof ORPCError),
-          }),
-        ],
-      }),
-      inject: [REQUEST],
-    }),
-    LoggerModule.forRoot({
-      exclude: [],
-      useExisting: true,
-    }),
+    ORPCModule.forRoot(orpcConfig),
     DatabaseModule,
-    SubmissionsModule,
+    PersistenceModule,
+    StorageModule,
+    MessagingModule,
+    AuthModule,
+    UserModule,
+    ProblemModule,
+    SubmissionModule,
+    ContestModule,
+    BoardModule,
+    AdminModule,
+    JudgeModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

@@ -1,19 +1,12 @@
 {
-  "exclude": ["node_modules", "dist"],
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vitest/globals", "node"],
-    "outDir": "./dist",
-    "target": "es2024",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "paths": {
-      "@/*": ["./src/*"],
-      "$/*": ["./src/modules/*"]
-    },
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
+    "rootDir": ".",
+    "outDir": "dist",
     "experimentalDecorators": true,
-    "incremental": true,
-    "skipLibCheck": true
-  }
+    "emitDecoratorMetadata": true,
+    "types": ["node"],
+    "declaration": false
+  },
+  "include": ["src", "drizzle.config.ts"]
 }

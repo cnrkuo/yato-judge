@@ -5,10 +5,10 @@
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true,
-    "defaultBranch": "master"
+    "defaultBranch": "reborn"
   },
   "files": {
-    "includes": ["apps/**", "packages/**", "!apps/www/public"]
+    "includes": ["apps/**", "packages/**", "!apps/web/public", "!apps/api/migrations"]
   },
   "assist": {
     "actions": {
@@ -55,22 +55,26 @@
   },
   "overrides": [
     {
+      "includes": ["apps/api/src/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/api/src/**/*.*.ts"],
       "linter": {
         "rules": {
           "style": {
-            "useImportType": "off",
             "noNonNullAssertion": "off"
           }
         }
       }
     }
   ],
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
   "json": {
     "formatter": {
       "enabled": true,
