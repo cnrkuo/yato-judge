@@ -1,0 +1,65 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm --filter @yato/contract build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  compose:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_CA_CERT: ""
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose -f compose.yaml config --quiet
+      - name: Validate config
+        run: docker compose -f compose.prod.yaml config --quiet
+        env:
+          POSTGRES_PASSWORD: ci
+          RABBITMQ_PASSWORD: ci
+          SESSION_SECRET: ci
+          JUDGE_TOKEN: yato_judge_ci_only_0123456789abcdef0123456789
+
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BUILD_CA_CERT: ""
+    steps:
+      - uses: actions/checkout@v7
+      - name: Production
+        run: sh docker/prod.sh
+      - name: Judge self-test inside the image
+        run: >
+          docker compose -f compose.prod.yaml --env-file .env.production
+          run --rm --no-deps -T judge judge-selftest
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm --filter @yato/web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - if: failure()
+        run: docker compose -f compose.prod.yaml --env-file .env.production logs --no-color
