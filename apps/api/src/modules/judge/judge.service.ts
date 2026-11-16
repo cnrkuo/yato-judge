@@ -81,6 +81,9 @@ export class JudgeService {
           inputSha256,
           outputSha256,
         })),
+        checker: found.problem.checker
+          ? { sha256: sha256(found.problem.checker), source: found.problem.checker }
+          : null,
       },
     };
   }

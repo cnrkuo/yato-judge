@@ -3,8 +3,10 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "api_client.hpp"
+#include "checker.hpp"
 #include "config.hpp"
 #include "sandbox.hpp"
 
@@ -17,6 +19,12 @@ namespace judge {
  * Task layout under `work_dir`:
  *   <task>/box/   source and binary; the program's (read-only) cwd
  *   <task>/io/    captured output; never visible to the program
+ *
+ *   <task>/checker/   the checker's (read-only) cwd, when the problem has one
+ *
+ * A problem's own checker is compiled once and kept in the cache. It runs in
+ * a jail of its own after each testcase and sees only that testcase's input,
+ * the program's output and the expected output.
  */
 class Runner {
  public:
@@ -38,12 +46,23 @@ class Runner {
     Verdict verdict;
     std::string message;
   };
-  /** Creates `<root>/box` and `<root>/io`, saves the source and compiles it. */
-  std::optional<Failure> build(const LanguageSpec& spec, const std::string& code, const std::filesystem::path& root);
+  /**
+   * Creates `<root>/box` and `<root>/io`, saves the source and compiles it.
+   * `header`, when it names a file, is copied into the box first.
+   */
+  std::optional<Failure> build(const LanguageSpec& spec, const std::string& code, const std::filesystem::path& root,
+                               const std::filesystem::path& header = {});
   [[nodiscard]] sandbox::RunSpec base_spec(const std::filesystem::path& root) const;
 
   /** Returns the cached path of a testdata blob, downloading it on a miss. */
   std::string testdata(const Testcase& testcase, bool input);
+
+  /** Returns the cached path of the compiled checker, building it on a miss. */
+  std::variant<std::string, Failure> compiled_checker(const CheckerSource& checker);
+  /** Runs the checker in `box`, which holds its binary, on one testcase. */
+  [[nodiscard]] checker::Outcome run_checker(const std::filesystem::path& box, const std::filesystem::path& log_path,
+                                             const std::string& input_path, const std::string& output_path,
+                                             const std::string& expected_path) const;
 
   const Config& config_;
   ApiClient& api_;

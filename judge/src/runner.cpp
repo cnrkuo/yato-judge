@@ -1,8 +1,10 @@
 #include "runner.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 
 #include <unistd.h>
@@ -44,8 +46,38 @@ Report failure(const Task& task, Verdict verdict, std::string message) {
   return report;
 }
 
+/** Whether `text` is a lower-case SHA-256 in hex, and so safe as a file name. */
+bool is_content_hash(const std::string& text) {
+  return text.size() == 64 && text.find_first_not_of("0123456789abcdef") == std::string::npos;
+}
+
+/** FNV-1a; tells cache entries built differently apart, nothing more. */
+std::uint64_t fingerprint(std::uint64_t hash, std::string_view data) {
+  for (const char c : data) {
+    hash ^= static_cast<unsigned char>(c);
+    hash *= 0x100000001b3ULL;
+  }
+  // Keeps "ab","c" and "a","bc" apart when chained.
+  return (hash ^ 0xffU) * 0x100000001b3ULL;
+}
+
+/**
+ * Makes `source` appear as `target` for a checker, whose jail runs as
+ * another user and cannot be given files from the judge's private
+ * directories directly. A hard link when both are on one filesystem (the
+ * usual layout), a copy otherwise.
+ */
+void place(const fs::path& source, const fs::path& target) {
+  fs::permissions(source, fs::perms::group_read | fs::perms::others_read, fs::perm_options::add);
+  fs::remove(target);
+  std::error_code cannot_link;
+  fs::create_hard_link(source, target, cannot_link);
+  if (cannot_link) fs::copy_file(source, target);
+}
+
+/** `check` decides the verdict of a run that ended normally. */
 TestResult to_result(const Testcase& testcase, const sandbox::RunResult& run, std::int64_t time_limit_ms,
-                     const std::string& expected_path, const std::string& output_path) {
+                     const std::function<checker::Outcome()>& check) {
   TestResult result;
   result.testcase_id = testcase.id;
   result.time_ms = std::min(run.cpu_ms, time_limit_ms);
@@ -79,7 +111,7 @@ TestResult to_result(const Testcase& testcase, const sandbox::RunResult& run, st
         result.verdict = Verdict::RuntimeError;
         result.message = format("Exited with code %d", run.exit_code);
       } else {
-        const checker::Outcome outcome = checker::compare_files(expected_path, output_path);
+        const checker::Outcome outcome = check();
         result.verdict = outcome.verdict;
         result.score = outcome.score;
         result.message = outcome.message;
@@ -94,9 +126,7 @@ TestResult to_result(const Testcase& testcase, const sandbox::RunResult& run, st
 std::string Runner::testdata(const Testcase& testcase, bool input) {
   const std::string& hash = input ? testcase.input_sha256 : testcase.output_sha256;
   // The hash becomes a file name; make sure it is nothing but a hash.
-  if (hash.size() != 64 || hash.find_first_not_of("0123456789abcdef") != std::string::npos) {
-    throw ApiError("testcase has a malformed content hash");
-  }
+  if (!is_content_hash(hash)) throw ApiError("testcase has a malformed content hash");
   const std::string path = (fs::path(config_.cache_dir) / hash).string();
   if (!fs::exists(path)) api_.download_testdata(testcase.id, input ? "input" : "output", path);
   return path;
@@ -112,7 +142,90 @@ sandbox::RunSpec Runner::base_spec(const fs::path& root) const {
   return base;
 }
 
-std::optional<Runner::Failure> Runner::build(const LanguageSpec& spec, const std::string& code, const fs::path& root) {
+std::variant<std::string, Runner::Failure> Runner::compiled_checker(const CheckerSource& checker) {
+  if (!is_content_hash(checker.sha256)) throw ApiError("checker has a malformed content hash");
+
+  // A checker built with another compiler command or testlib.h is another binary.
+  std::uint64_t build_id = 0xcbf29ce484222325ULL;
+  for (const std::string& argument : config_.checker_compile) build_id = fingerprint(build_id, argument);
+  const bool has_testlib = fs::is_regular_file(config_.testlib_path);
+  if (has_testlib) build_id = fingerprint(build_id, read_file(config_.testlib_path).value_or(""));
+
+  const fs::path cached = fs::path(config_.cache_dir) / format("checker-%s-%016llx", checker.sha256.c_str(),
+                                                               static_cast<unsigned long long>(build_id));
+  if (fs::exists(cached)) return cached.string();
+
+  const fs::path root = fs::path(config_.work_dir) / format(".checker-%d", static_cast<int>(::getpid()));
+  const ScopedDirectory cleanup{root};
+  const LanguageSpec spec{"checker.cpp", config_.checker_compile, {}};
+  if (auto failed = build(spec, checker.source, root, has_testlib ? fs::path(config_.testlib_path) : fs::path())) {
+    std::string message = "The problem's checker does not compile";
+    if (!has_testlib) message += " (this judge has no testlib.h at " + config_.testlib_path + ")";
+    return Failure{Verdict::JudgeError, message + ":\n" + failed->message};
+  }
+
+  // Copy-then-rename so a crash never leaves half a binary in the cache.
+  const fs::path partial = cached.string() + format(".part-%d", static_cast<int>(::getpid()));
+  std::error_code error;
+  fs::copy_file(root / "box" / "checker", partial, fs::copy_options::overwrite_existing, error);
+  if (!error) {
+    fs::permissions(partial,
+                    fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read |
+                        fs::perms::others_exec,
+                    error);
+  }
+  if (!error) fs::rename(partial, cached, error);
+  if (error) {
+    std::error_code ignored;
+    fs::remove(partial, ignored);
+    return Failure{Verdict::JudgeError, "Cannot store the compiled checker: " + error.message()};
+  }
+  return cached.string();
+}
+
+checker::Outcome Runner::run_checker(const fs::path& box, const fs::path& log_path, const std::string& input_path,
+                                     const std::string& output_path, const std::string& expected_path) const {
+  try {
+    place(input_path, box / "input");
+    place(output_path, box / "output");
+    place(expected_path, box / "answer");
+  } catch (const fs::filesystem_error& error) {
+    return {Verdict::JudgeError, 0.0, std::string("Cannot hand the testcase to the checker: ") + error.what()};
+  }
+
+  // A jail like a submission's, with the checker's own box in place of the program's.
+  sandbox::RunSpec check;
+  check.env = kEnvironment;
+  check.cwd = box.string();
+  check.readonly_cwd = true;
+  check.argv = {"./checker", "input", "output", "answer"};
+  check.stderr_path = log_path.string();
+  check.limits.cpu_ms = config_.checker_time_ms;
+  check.limits.wall_ms = config_.checker_time_ms * 2;
+  check.limits.memory_kb = config_.checker_memory_kb;
+  check.limits.output_kb = 1024;
+  check.limits.max_processes = config_.max_processes;
+
+  const sandbox::RunResult ran = sandbox::run(check);
+  switch (ran.status) {
+    case sandbox::Status::Exited:
+      return checker::interpret(ran.exit_code, read_output(log_path));
+    case sandbox::Status::InternalError:
+      return {Verdict::JudgeError, 0.0, "Sandbox error while checking: " + ran.error};
+    case sandbox::Status::TimeLimit:
+      return {Verdict::JudgeError, 0.0, "The checker ran out of time"};
+    case sandbox::Status::MemoryLimit:
+      return {Verdict::JudgeError, 0.0, "The checker ran out of memory"};
+    case sandbox::Status::Signaled:
+      return {Verdict::JudgeError, 0.0,
+              format("The checker was killed by signal %d (%s)", ran.signal, sandbox::signal_name(ran.signal).c_str())};
+    default:
+      return {Verdict::JudgeError, 0.0, "The checker did not finish"};
+  }
+}
+
+std::optional<Runner::Failure> Runner::build(const LanguageSpec& spec, const std::string& code, const fs::path& root,
+                                             const fs::path& header) {
   const fs::path box = root / "box";
   const fs::path io = root / "io";
   try {
@@ -125,6 +238,7 @@ std::optional<Runner::Failure> Runner::build(const LanguageSpec& spec, const std
     fs::permissions(box, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read |
                              fs::perms::others_exec);
     std::ofstream(box / spec.source, std::ios::binary) << code;
+    if (!header.empty()) fs::copy_file(header, box / header.filename());
     if (::geteuid() == 0) {
       // The compiler runs as the unprivileged uid and writes into the box.
       if (::chown(box.c_str(), config_.run_uid, config_.run_gid) != 0) throw fs::filesystem_error("chown", box, {});
@@ -185,6 +299,26 @@ Report Runner::judge(const Task& task) {
   const fs::path io = root / "io";
   const sandbox::RunSpec base = base_spec(root);
 
+  // ------------------------------------------------------------------ checker
+  // <task>/checker/ is the checker's read-only cwd: its binary and, one
+  // testcase at a time, `input`, `output` and `answer`. Like the box it must
+  // be reachable by the jail's uid; submissions never see it.
+  const fs::path checker_box = root / "checker";
+  if (task.checker) {
+    auto compiled = compiled_checker(*task.checker);
+    if (auto* failed = std::get_if<Failure>(&compiled)) {
+      return failure(task, failed->verdict, std::move(failed->message));
+    }
+    try {
+      fs::create_directory(checker_box);
+      fs::permissions(checker_box, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec |
+                                       fs::perms::others_read | fs::perms::others_exec);
+      place(std::get<std::string>(compiled), checker_box / "checker");
+    } catch (const fs::filesystem_error& error) {
+      return failure(task, Verdict::JudgeError, std::string("Cannot prepare the checker directory: ") + error.what());
+    }
+  }
+
   // ---------------------------------------------------------------------- run
   Report report;
   report.submission_id = task.submission_id;
@@ -192,7 +326,8 @@ Report Runner::judge(const Task& task) {
   for (const Testcase& testcase : task.testcases) {
     sandbox::RunSpec run = base;
     run.argv = spec.run;
-    run.stdin_path = testdata(testcase, true);
+    const std::string input_path = testdata(testcase, true);
+    run.stdin_path = input_path;
     run.stdout_path = output_path;
     run.readonly_cwd = true;
     run.limits.cpu_ms = task.time_limit_ms;
@@ -201,7 +336,10 @@ Report Runner::judge(const Task& task) {
     run.limits.output_kb = config_.output_limit_kb;
 
     const std::string expected_path = testdata(testcase, false);
-    report.results.push_back(to_result(testcase, sandbox::run(run), task.time_limit_ms, expected_path, output_path));
+    report.results.push_back(to_result(testcase, sandbox::run(run), task.time_limit_ms, [&] {
+      if (!task.checker) return checker::compare_files(expected_path, output_path);
+      return run_checker(checker_box, io / "checker.log", input_path, output_path, expected_path);
+    }));
   }
   return report;
 }

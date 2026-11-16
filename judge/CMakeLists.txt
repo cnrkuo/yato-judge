@@ -38,6 +38,20 @@ if(OpenSSL_FOUND)
   target_link_libraries(httplib INTERFACE OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
+# testlib.h is not compiled into the judge: it is installed next to it and
+# handed to the checkers problems come with (`testlib_path` in the config).
+set(TESTLIB_VERSION 0.9.41)
+set(TESTLIB_DIR ${CMAKE_BINARY_DIR}/_deps/testlib-${TESTLIB_VERSION})
+if(NOT EXISTS ${TESTLIB_DIR}/testlib.h)
+  file(DOWNLOAD
+    https://raw.githubusercontent.com/MikeMirzayanov/testlib/${TESTLIB_VERSION}/testlib.h
+    ${TESTLIB_DIR}/testlib.h
+    EXPECTED_HASH SHA256=70f74c570f2b45d63086ae6e4c41bbb5c5ffd4428cba9914bbc0396d29be10d8
+    TLS_VERIFY ON)
+endif()
+# A stable path for packaging (judge/Dockerfile).
+configure_file(${TESTLIB_DIR}/testlib.h ${CMAKE_BINARY_DIR}/testlib.h COPYONLY)
+
 # Everything except main() lives in a library so the tests can link it.
 add_library(judge_core STATIC
   src/api_client.cpp
@@ -75,6 +89,9 @@ add_executable(judge_tests
   tests/toolchain_test.cpp)
 target_include_directories(judge_tests SYSTEM PRIVATE ${DOCTEST_DIR})
 target_link_libraries(judge_tests PRIVATE judge_core)
+# Used when YATO_TESTLIB is not set, i.e. when run from the build tree.
+target_compile_definitions(judge_tests PRIVATE YATO_TESTLIB_DEFAULT="${CMAKE_BINARY_DIR}/testlib.h")
 add_test(NAME judge_tests COMMAND judge_tests)
 
 install(TARGETS yato-judge RUNTIME DESTINATION bin)
+install(FILES ${CMAKE_BINARY_DIR}/testlib.h DESTINATION share/yato-judge)

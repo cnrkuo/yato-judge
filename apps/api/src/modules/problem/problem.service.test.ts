@@ -75,3 +75,24 @@ describe('ProblemService.editable', () => {
     await expect(service(problem(AccessLevel.HIDDEN, true)).editable(admin, 7)).resolves.toBeDefined();
   });
 });
+
+describe('ProblemService.get', () => {
+  const withChecker = (checker: string) => {
+    const found = { ...problem(AccessLevel.OPEN, true), checker, createdAt: new Date(), updatedAt: new Date() };
+    const problems = fake<ProblemRepository>({
+      findById: async () => ({ problem: found, owner }),
+      countTestcases: async () => 0,
+    });
+    return new ProblemService(problems, fake<SubmissionRepository>({}), fake<ContestRepository>({}));
+  };
+
+  it('tells everyone a problem has a checker, but shows its source to editors only', async () => {
+    const service = withChecker('int main() {}');
+    expect(await service.get(user, 7)).toMatchObject({ hasChecker: true, checker: '', canEdit: false });
+    expect(await service.get(admin, 7)).toMatchObject({ hasChecker: true, checker: 'int main() {}', canEdit: true });
+  });
+
+  it('reports no checker for problems without one', async () => {
+    expect(await withChecker('').get(admin, 7)).toMatchObject({ hasChecker: false, checker: '' });
+  });
+});

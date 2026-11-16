@@ -112,6 +112,7 @@ export default function Problem({ loaderData, actionData }: Route.ComponentProps
             <span>Time limit {problem.timeLimitMs} ms</span>
             <span>Memory limit {Math.round(problem.memoryLimitKb / 1024)} MB</span>
             <span>{problem.scoreMode === ScoreMode.GROUP_MIN ? 'Subtask scoring' : 'Per-testcase scoring'}</span>
+            {problem.hasChecker && <span>Special judge</span>}
             <span>
               by <UserLink user={problem.owner} />
             </span>

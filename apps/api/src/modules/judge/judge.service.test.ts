@@ -1,5 +1,6 @@
 import { Verdict } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
+import { sha256 } from '../../common/crypto.js';
 import { UnauthorizedError } from '../../common/errors.js';
 import type { JudgeTaskMessage } from '../../messaging/commands.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
@@ -10,7 +11,7 @@ import type { JudgeRepository, JudgeRow } from './judge.repository.js';
 import { JudgeService } from './judge.service.js';
 
 /** In-memory stand-ins for the queue and the tables `fetch` touches. */
-function setup(waiting: { id: number; language: string }[]) {
+function setup(waiting: { id: number; language: string }[], checker = '') {
   const queue: JudgeTaskMessage[] = waiting.map(({ id }) => ({ submissionId: id }));
   const rows = new Map(waiting.map((s) => [s.id, { ...s, problemId: 1, code: '', verdict: Verdict.WAIT as number }]));
   const seen: { judgeId: number; languages?: readonly string[] }[] = [];
@@ -32,7 +33,7 @@ function setup(waiting: { id: number; language: string }[]) {
     touch: async (judgeId: number, languages?: readonly string[]) => void seen.push({ judgeId, languages }),
   } as unknown as JudgeRepository;
   const problems = {
-    findById: async () => ({ problem: { timeLimitMs: 1000, memoryLimitKb: 65536 } }),
+    findById: async () => ({ problem: { timeLimitMs: 1000, memoryLimitKb: 65536, checker } }),
     listTestcases: async () => [],
   } as unknown as ProblemRepository;
 
@@ -42,6 +43,19 @@ function setup(waiting: { id: number; language: string }[]) {
 
 const judge = { id: 7 } as JudgeRow;
 const ids = (queue: JudgeTaskMessage[]) => queue.map((t) => t.submissionId);
+
+describe('JudgeService.fetch and checkers', () => {
+  it('sends no checker for problems that compare with the expected output', async () => {
+    const { service } = setup([{ id: 1, language: 'cpp' }]);
+    expect((await service.fetch(judge)).task?.checker).toBeNull();
+  });
+
+  it("sends a problem's checker with the hash of its source, which judges cache it under", async () => {
+    const source = '#include "testlib.h"\nint main() {}\n';
+    const { service } = setup([{ id: 1, language: 'cpp' }], source);
+    expect((await service.fetch(judge)).task?.checker).toEqual({ sha256: sha256(source), source });
+  });
+});
 
 describe('JudgeService.fetch', () => {
   it('hands out the oldest submission when the judge does not list languages', async () => {

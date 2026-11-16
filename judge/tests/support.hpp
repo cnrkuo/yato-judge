@@ -15,6 +15,9 @@ namespace judge::testing {
  */
 std::filesystem::path fresh_dir(const std::string& name);
 
+/** testlib.h for checker tests: `YATO_TESTLIB`, or the copy in the build tree. */
+std::string testlib_path();
+
 /** Writes `content` to `path`, creating or truncating it. */
 void write_file(const std::filesystem::path& path, const std::string& content);
 

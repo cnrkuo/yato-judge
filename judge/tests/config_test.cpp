@@ -130,3 +130,23 @@ TEST_CASE("a broken configuration is refused with a reason") {
   CHECK_THROWS_WITH_AS(load_config(config_file("empty.json", "{}")), doctest::Contains("no judge token"),
                        std::runtime_error);
 }
+
+TEST_CASE("checkers build with g++ and testlib.h by default; a config file can change both") {
+  const CleanEnv clean;
+  const auto defaults = load_config(config_file("defaults.json", R"({"token": "t"})"));
+  CHECK(defaults.checker_compile.front() == "/usr/bin/g++");
+  CHECK(defaults.testlib_path == "/usr/local/share/yato-judge/testlib.h");
+  CHECK(defaults.checker_time_ms == 10000);
+
+  const auto custom = load_config(config_file("checker.json", R"({
+    "token": "t",
+    "checker_compile": ["/usr/bin/clang++", "-o", "checker", "checker.cpp"],
+    "testlib_path": "/opt/testlib.h",
+    "checker_time_ms": 3000,
+    "checker_memory_kb": 65536
+  })"));
+  CHECK(custom.checker_compile.front() == "/usr/bin/clang++");
+  CHECK(custom.testlib_path == "/opt/testlib.h");
+  CHECK(custom.checker_time_ms == 3000);
+  CHECK(custom.checker_memory_kb == 65536);
+}

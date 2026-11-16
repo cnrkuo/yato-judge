@@ -1,4 +1,4 @@
-import { AccessLevel, ScoreMode } from '@yato/contract';
+import { AccessLevel, CODE_MAX_LENGTH, ScoreMode } from '@yato/contract';
 import type { ReactNode } from 'react';
 import { Form, useNavigation, useSubmit } from 'react-router';
 import { type ActionResult, api, load, submit } from '~/lib/api.server';
@@ -82,6 +82,8 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Fee
             memoryLimitKb: Math.round(Number(form.get('memoryLimitMb')) * 1024),
             scoreMode: form.get('scoreMode') === ScoreMode.GROUP_MIN ? ScoreMode.GROUP_MIN : ScoreMode.AVERAGE,
             scoreGroups,
+            // Browsers submit textareas with CRLF line breaks.
+            checker: String(form.get('checker') ?? '').replaceAll('\r\n', '\n'),
           },
           o,
         ),
@@ -249,6 +251,30 @@ function StatementCard({ problem, notice, pending }: SectionProps & { problem: P
               />
             </Field>
           </Grid>
+
+          <Field
+            label="Checker"
+            hint={
+              <>
+                Optional C++ program that decides whether an output is right, for problems with more than one correct
+                answer. Write it with <code>testlib.h</code>; it runs as{' '}
+                <code>checker &lt;input&gt; &lt;output&gt; &lt;answer&gt;</code> and may award part of a testcase with{' '}
+                <code>quitp</code>. Its messages are shown with the submission. Leave empty to compare with the expected
+                output. Rejudge to apply a change to past submissions.
+              </>
+            }>
+            <textarea
+              className={css.monoInput}
+              name="checker"
+              rows={problem.checker ? 12 : 3}
+              maxLength={CODE_MAX_LENGTH}
+              spellCheck={false}
+              placeholder={
+                '#include "testlib.h"\n\nint main(int argc, char* argv[]) {\n  registerTestlibCmd(argc, argv);\n  …\n}'
+              }
+              defaultValue={problem.checker}
+            />
+          </Field>
 
           <CheckField
             name="submitOpen"

@@ -45,6 +45,10 @@ void apply_file(const nlohmann::json& json, Config& config) {
   read("compile_time_ms", config.compile_time_ms);
   read("compile_memory_kb", config.compile_memory_kb);
   read("max_processes", config.max_processes);
+  read("checker_compile", config.checker_compile);
+  read("testlib_path", config.testlib_path);
+  read("checker_time_ms", config.checker_time_ms);
+  read("checker_memory_kb", config.checker_memory_kb);
   if (!json.contains("languages")) return;
   for (const auto& [id, spec] : json.at("languages").items()) {
     LanguageSpec language;

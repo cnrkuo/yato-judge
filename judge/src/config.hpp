@@ -44,6 +44,17 @@ struct Config {
   std::int64_t compile_memory_kb = 2097152;
   int max_processes = 64;
 
+  /**
+   * Builds a problem's checker from `checker.cpp` into `checker`. A copy of
+   * testlib.h sits next to the source, so `#include "testlib.h"` works.
+   */
+  std::vector<std::string> checker_compile = {"/usr/bin/g++", "-std=c++20", "-O2", "-o", "checker", "checker.cpp"};
+  /** testlib.h handed to checkers; without it only checkers that do not include it build. */
+  std::string testlib_path = "/usr/local/share/yato-judge/testlib.h";
+  /** Limits for one checker run. */
+  std::int64_t checker_time_ms = 10000;
+  std::int64_t checker_memory_kb = 1048576;
+
   /** Keyed by the language ids of the API contract ("c", "cpp", "cpp23", "py3"). */
   std::map<std::string, LanguageSpec> languages;
 };

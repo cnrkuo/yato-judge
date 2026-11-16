@@ -1,0 +1,1 @@
+ALTER TABLE "problems" ADD COLUMN "checker" text DEFAULT '' NOT NULL;
