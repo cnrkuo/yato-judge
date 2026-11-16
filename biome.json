@@ -73,6 +73,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["apps/api/src/**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnsafeOptionalChaining": "off"
+          }
+        }
+      }
     }
   ],
   "json": {
