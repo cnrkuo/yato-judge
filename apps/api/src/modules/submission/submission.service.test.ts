@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ForbiddenError, NotFoundError, UnauthorizedError } from '../../common/errors.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import { Queue } from '../../messaging/message-broker.js';
-import { actor, admin, fake, guest, user } from '../../testing/fixtures.js';
+import { actor, admin, fake, guest, localEvents, user } from '../../testing/fixtures.js';
 import type { ContestRepository } from '../contest/contest.repository.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import type { ProblemService } from '../problem/problem.service.js';
@@ -71,6 +71,7 @@ function service(
       listProblems: async () => [{ problemId: 3 }, { problemId: 4 }],
     }),
     fake<MessageBroker>({ publish: async (queue: string, message: unknown) => void published.push([queue, message]) }),
+    localEvents(),
   );
   return { submissions, published, filters };
 }
@@ -153,5 +154,121 @@ describe('SubmissionService.list', () => {
     await submissions.list(user, { page: 1, pageSize: 20, problemId: 3 });
     expect(filters).toEqual([{ problemId: 3, within: undefined }]);
     await expect(submissions.list(user, { page: 1, pageSize: 20, contestId: 404 })).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('SubmissionService.watch', () => {
+  const result = (testcaseId: number, ordinal: number) => ({
+    testcaseId,
+    ordinal,
+    verdict: Verdict.AC as number,
+    timeMs: 1,
+    memoryKb: 1,
+    score: 1,
+    message: '',
+  });
+
+  /** A submission whose stored state the test changes, as a judge and the write queue would. */
+  function watched(verdict: number, readable = true) {
+    const state = { ...row, verdict, results: [] as ReturnType<typeof result>[], judgedAt: null as Date | null };
+    const access = { readable };
+    const events = localEvents();
+    const submissions = new SubmissionService(
+      fake<SubmissionRepository>({
+        findSummary: async () => ({ ...summary, verdict: state.verdict }),
+        findById: async () => ({ ...state }),
+      }),
+      fake<ProblemRepository>({ findById: async () => ({ problem: publicCode, owner }) }),
+      fake<ProblemService>({
+        access: async () => {
+          if (!access.readable) throw new ForbiddenError('You may not view this problem');
+          return { canSubmit: true };
+        },
+      }),
+      fake<ContestRepository>({}),
+      fake<MessageBroker>({}),
+      events,
+    );
+    const judged = () => {
+      Object.assign(state, { verdict: Verdict.AC, results: [result(11, 0), result(12, 1)], judgedAt: new Date(1000) });
+    };
+    return { submissions, events, state, access, judged };
+  }
+
+  it('sends the finished submission once and ends', async () => {
+    const { submissions } = watched(Verdict.AC);
+    const seen = [];
+    for await (const event of submissions.watch(user, 5)) seen.push(event);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ type: 'snapshot', submission: { id: 5, verdict: Verdict.AC } });
+  });
+
+  it('follows a run: claimed, each testcase, then the stored result', async () => {
+    const { submissions, events, state, judged } = watched(Verdict.WAIT);
+    const stream = submissions.watch(user, 5);
+    expect((await stream.next()).value).toMatchObject({ type: 'snapshot', submission: { verdict: Verdict.WAIT } });
+
+    state.verdict = Verdict.JUDGING;
+    events.changed(5);
+    expect((await stream.next()).value).toMatchObject({ type: 'snapshot', submission: { verdict: Verdict.JUDGING } });
+
+    events.progress(5, 2, result(11, 0));
+    events.progress(5, 2, result(12, 1));
+    expect((await stream.next()).value).toEqual({ type: 'progress', total: 2, result: result(11, 0) });
+    expect((await stream.next()).value).toEqual({ type: 'progress', total: 2, result: result(12, 1) });
+
+    judged();
+    events.changed(5);
+    const last = (await stream.next()).value;
+    expect(last).toMatchObject({ type: 'snapshot', submission: { verdict: Verdict.AC } });
+    expect(last).toMatchObject({ submission: { results: [result(11, 0), result(12, 1)] } });
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  it('shows a viewer who arrives mid-run the testcases already done', async () => {
+    const { submissions, events } = watched(Verdict.JUDGING);
+    events.progress(5, 3, result(11, 0));
+    const stream = submissions.watch(user, 5);
+    expect((await stream.next()).value).toMatchObject({ type: 'snapshot' });
+    expect((await stream.next()).value).toEqual({ type: 'progress', total: 3, result: result(11, 0) });
+    await stream.return(undefined);
+  });
+
+  it('finds the result by itself when the event about it was lost', async () => {
+    const { submissions, judged } = watched(Verdict.JUDGING);
+    const stream = submissions.watch(user, 5, undefined, 5);
+    await stream.next();
+    judged(); // and nobody announces it
+    expect((await stream.next()).value).toMatchObject({ type: 'snapshot', submission: { verdict: Verdict.AC } });
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  it('refuses viewers who may not see the submission, also once the stream runs', async () => {
+    const stranger = actor(30);
+    await expect(watched(Verdict.WAIT, false).submissions.watch(stranger, 5).next()).rejects.toThrow(ForbiddenError);
+
+    const { submissions, events, access } = watched(Verdict.WAIT);
+    const stream = submissions.watch(stranger, 5);
+    await stream.next();
+    access.readable = false;
+    events.changed(5);
+    await expect(stream.next()).rejects.toThrow(ForbiddenError);
+  });
+
+  it('stops listening when the viewer leaves', async () => {
+    const { submissions, events } = watched(Verdict.WAIT);
+    const leave = new AbortController();
+    const stream = submissions.watch(user, 5, leave.signal);
+    await stream.next();
+    const ended = stream.next();
+    leave.abort();
+    expect((await ended).done).toBe(true);
+
+    // Nobody is left to hear this.
+    const heard: unknown[] = [];
+    events.listen(6, (event) => heard.push(event));
+    events.changed(5);
+    expect(heard).toEqual([]);
+    expect((events as unknown as { listeners: Map<number, unknown> }).listeners.has(5)).toBe(false);
   });
 });

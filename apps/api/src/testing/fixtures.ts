@@ -1,5 +1,7 @@
 import { UserLevel } from '@yato/contract';
 import { type Actor, GUEST } from '../common/actor.js';
+import type { MessageBroker } from '../messaging/message-broker.js';
+import { type SubmissionBusEvent, SubmissionEvents } from '../modules/submission/submission.events.js';
 
 /** Test-only helpers. Not part of the build (tsconfig.build.json). */
 
@@ -30,3 +32,16 @@ export function fake<T>(members: Partial<Record<keyof T, unknown>>): T {
 }
 
 export const minutesFrom = (base: Date, minutes: number) => new Date(base.getTime() + minutes * 60_000);
+
+/**
+ * A `SubmissionEvents` without a broker: what it announces comes straight
+ * back to it, as it would from the exchange.
+ */
+export function localEvents(): SubmissionEvents {
+  const events: SubmissionEvents = new SubmissionEvents(
+    fake<MessageBroker>({
+      announce: (key: string, payload: SubmissionBusEvent) => events.dispatch(Number(key.split('.')[1]), payload),
+    }),
+  );
+  return events;
+}

@@ -102,6 +102,27 @@ void ApiClient::download_testdata(int testcase_id, const std::string& kind, cons
   if (std::rename(partial.c_str(), destination.c_str()) != 0) throw ApiError("cannot move testdata into the cache");
 }
 
+namespace {
+
+json to_json(const TestResult& result) {
+  return {
+      {"testcaseId", result.testcase_id},
+      {"verdict", static_cast<int>(result.verdict)},
+      {"timeMs", result.time_ms},
+      {"memoryKb", result.memory_kb},
+      {"score", result.score},
+      {"message", truncated(result.message, 1000)},
+  };
+}
+
+}  // namespace
+
+void ApiClient::progress(int submission_id, int ordinal, int total, const TestResult& result) {
+  json entry = to_json(result);
+  entry["ordinal"] = ordinal;
+  post("/judge/progress", dump({{"submissionId", submission_id}, {"total", total}, {"result", std::move(entry)}}));
+}
+
 void ApiClient::report(const Report& report) {
   json body = {
       {"submissionId", report.submission_id},
@@ -110,14 +131,7 @@ void ApiClient::report(const Report& report) {
   };
   if (report.verdict) body["verdict"] = static_cast<int>(*report.verdict);
   for (const TestResult& result : report.results) {
-    body["results"].push_back({
-        {"testcaseId", result.testcase_id},
-        {"verdict", static_cast<int>(result.verdict)},
-        {"timeMs", result.time_ms},
-        {"memoryKb", result.memory_kb},
-        {"score", result.score},
-        {"message", truncated(result.message, 1000)},
-    });
+    body["results"].push_back(to_json(result));
   }
   post("/judge/report", dump(body));
 }

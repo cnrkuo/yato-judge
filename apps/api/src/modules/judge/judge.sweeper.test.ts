@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import { Queue } from '../../messaging/message-broker.js';
-import { fake } from '../../testing/fixtures.js';
+import { fake, localEvents } from '../../testing/fixtures.js';
 import type { SubmissionRepository } from '../submission/submission.repository.js';
 import { JudgeSweeper } from './judge.sweeper.js';
 
@@ -13,6 +13,7 @@ function setup(queueDepth: number, stale: number[], waiting: number[]) {
       publish: async (queue: string, message: unknown) => void published.push([queue, message]),
     }),
     fake<SubmissionRepository>({ releaseStale: async () => stale, waitingIds: async () => waiting }),
+    localEvents(),
   );
   return { sweeper, published };
 }
@@ -42,6 +43,7 @@ describe('JudgeSweeper.sweep', () => {
           throw new Error('connection refused');
         },
       }),
+      localEvents(),
     );
     await expect(sweeper.sweep()).resolves.toBeUndefined();
   });

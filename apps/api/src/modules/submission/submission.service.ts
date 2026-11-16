@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AccessLevel, type Language, type Verdict } from '@yato/contract';
+import { AccessLevel, type Language, Verdict } from '@yato/contract';
 import { type Actor, isAdmin, requireAdmin, requireUser } from '../../common/actor.js';
 import { ForbiddenError, NotFoundError } from '../../common/errors.js';
 import { type PageInput, pageOf } from '../../common/pagination.js';
@@ -8,7 +8,16 @@ import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { ContestRepository } from '../contest/contest.repository.js';
 import { ProblemRepository } from '../problem/problem.repository.js';
 import { ProblemService } from '../problem/problem.service.js';
+import { Mailbox, type SubmissionBusEvent, SubmissionEvents } from './submission.events.js';
 import { type SubmissionFilter, SubmissionRepository } from './submission.repository.js';
+
+/**
+ * How long a stream waits for an event before reading the submission again
+ * itself: events are best effort, the database is not.
+ */
+const WATCH_RECHECK_MS = 10_000;
+
+const isPending = (verdict: Verdict) => verdict === Verdict.WAIT || verdict === Verdict.JUDGING;
 
 type SummaryRow = NonNullable<Awaited<ReturnType<SubmissionRepository['findSummary']>>>;
 
@@ -26,6 +35,8 @@ function toSummary(row: SummaryRow) {
   };
 }
 
+const asResult = <T extends { verdict: number }>(result: T) => ({ ...result, verdict: result.verdict as Verdict });
+
 @Injectable()
 export class SubmissionService {
   constructor(
@@ -34,6 +45,7 @@ export class SubmissionService {
     private readonly problemService: ProblemService,
     private readonly contests: ContestRepository,
     private readonly broker: MessageBroker,
+    private readonly events: SubmissionEvents,
   ) {}
 
   /** Accepts a submission; a judge machine picks it up asynchronously. */
@@ -91,10 +103,53 @@ export class SubmissionService {
       code: canReadCode ? row.code : null,
       compileMessage: own || admin ? row.compileMessage : '',
       comment: row.comment,
-      results: row.results.map((result) => ({ ...result, verdict: result.verdict as Verdict })),
+      results: row.results.map(asResult),
       judgedAt: row.judgedAt?.toISOString() ?? null,
       canRejudge: admin,
     };
+  }
+
+  /**
+   * Follows one submission while it is judged: its current state, then each
+   * testcase as a judge finishes it and the state again whenever it changes,
+   * until it has a verdict. Every state is read with `get`, so the viewer
+   * sees exactly what the page would show, and loses the stream with the
+   * right to see the submission.
+   *
+   * `recheckMs` is how long to go without an event before looking for
+   * itself; `signal` ends the stream when the viewer leaves.
+   */
+  async *watch(actor: Actor, id: number, signal?: AbortSignal, recheckMs = WATCH_RECHECK_MS) {
+    const inbox = new Mailbox<SubmissionBusEvent>();
+    // Listen first, then read: nothing that happens in between is missed.
+    const stop = this.events.listen(id, (event) => inbox.push(event));
+    try {
+      let submission = await this.get(actor, id);
+      yield { type: 'snapshot' as const, submission };
+
+      // Testcases finished before this viewer arrived. One that is also still
+      // in the inbox arrives twice, with the same content.
+      const known = submission.verdict === Verdict.JUDGING ? this.events.progressOf(id) : undefined;
+      for (const result of known?.results ?? []) {
+        yield { type: 'progress' as const, total: known?.total ?? 0, result: asResult(result) };
+      }
+
+      while (isPending(submission.verdict) && !signal?.aborted) {
+        const event = await inbox.next(recheckMs, signal);
+        if (signal?.aborted) return;
+        if (event?.kind === 'progress') {
+          yield { type: 'progress' as const, total: event.total, result: asResult(event.result) };
+          continue;
+        }
+        const current = await this.get(actor, id);
+        // Nothing heard and nothing new: keep waiting quietly.
+        if (!event && current.verdict === submission.verdict && current.judgedAt === submission.judgedAt) continue;
+        submission = current;
+        yield { type: 'snapshot' as const, submission };
+      }
+    } finally {
+      stop();
+    }
   }
 
   async rejudge(actor: Actor, id: number): Promise<void> {
@@ -114,6 +169,7 @@ export class SubmissionService {
   private async enqueue(ids: number[]): Promise<void> {
     for (const submissionId of ids) {
       await this.broker.publish(Queue.JUDGE, { submissionId } satisfies JudgeTaskMessage);
+      this.events.changed(submissionId);
     }
   }
 
@@ -121,5 +177,6 @@ export class SubmissionService {
     requireAdmin(actor);
     if (!(await this.submissions.findById(id))) throw new NotFoundError('Submission');
     await this.submissions.review(id, comment, verdict);
+    this.events.changed(id);
   }
 }

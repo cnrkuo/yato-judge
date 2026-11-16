@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { VERDICT_LABEL, Verdict } from '@yato/contract';
+import { useEffect, useState } from 'react';
 import { Form, Link } from 'react-router';
 import { ContestNav, inContest } from '~/components/contest-nav';
 import { api, load, seed, submit } from '~/lib/api.server';
 import { contestNav } from '~/lib/contest-nav.server';
 import { highlight } from '~/lib/highlight.server';
-import { orpc } from '~/lib/orpc';
+import { api as browserApi, orpc } from '~/lib/orpc';
 import { idParam } from '~/lib/params';
 import {
   Button,
@@ -60,7 +61,60 @@ export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `Submissio
 
 const isPending = (verdict: Verdict) => verdict === Verdict.WAIT || verdict === Verdict.JUDGING;
 
-type Result = Awaited<ReturnType<typeof api.submission.get>>['results'][number];
+type Submission = Awaited<ReturnType<typeof api.submission.get>>;
+type Result = Submission['results'][number];
+
+/** The testcases a judge has finished so far in the run in progress. */
+interface LiveRun {
+  total: number;
+  results: Result[];
+}
+
+/**
+ * Follows a submission while it is judged, over the server-sent events of
+ * `submission.watch`: `onSnapshot` gets the submission whenever it changes,
+ * `run` grows by a testcase at a time. `connected` turns false when the
+ * stream cannot be had or breaks, which is the caller's cue to poll instead.
+ */
+function useLiveRun(id: number, pending: boolean, onSnapshot: (submission: Submission) => void) {
+  const [run, setRun] = useState<LiveRun | null>(null);
+  const [connected, setConnected] = useState(true);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `onSnapshot` is new on every render and must not restart the stream.
+  useEffect(() => {
+    if (!pending) return;
+    const leaving = new AbortController();
+    setRun(null);
+    setConnected(true);
+    void (async () => {
+      try {
+        const events = await browserApi.submission.watch({ id }, { signal: leaving.signal });
+        for await (const event of events) {
+          if (event.type === 'snapshot') {
+            // Back to waiting (rejudged, or its judge was lost): that run is over.
+            if (event.submission.verdict === Verdict.WAIT) setRun(null);
+            onSnapshot(event.submission);
+          } else {
+            setRun((current) => ({
+              total: event.total,
+              results: [
+                ...(current?.results ?? []).filter((r) => r.testcaseId !== event.result.testcaseId),
+                event.result,
+              ].sort((a, b) => a.ordinal - b.ordinal),
+            }));
+          }
+        }
+      } catch {
+        // Falls through: a stream that fails and one that ends early are the same to the page.
+      }
+      // Still mounted and still pending, or this effect would have been cleaned up.
+      if (!leaving.signal.aborted) setConnected(false);
+    })();
+    return () => leaving.abort();
+  }, [id, pending]);
+
+  return { run: pending ? run : null, connected };
+}
 
 const resultColumns: Column<Result>[] = [
   { id: 'n', header: '#', cell: (r) => r.ordinal + 1 },
@@ -79,11 +133,17 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
   const { id, codeHtml, contest } = loaderData;
   const queryClient = useQueryClient();
   const options = orpc.submission.get.queryOptions({ input: { id } });
-  // Poll while the judge is working; stops as soon as a verdict arrives.
+  const [polling, setPolling] = useState(false);
+  // Only when the live stream is unavailable: poll while the judge is working.
   const { data: submission } = useQuery({
     ...options,
-    refetchInterval: (current) => (current.state.data && isPending(current.state.data.verdict) ? 1500 : false),
+    refetchInterval: (current) =>
+      polling && current.state.data && isPending(current.state.data.verdict) ? 1500 : false,
   });
+  const { run, connected } = useLiveRun(id, submission ? isPending(submission.verdict) : false, (current) =>
+    queryClient.setQueryData(options.queryKey, current),
+  );
+  useEffect(() => setPolling(!connected), [connected]);
   const rejudge = useMutation(
     orpc.submission.rejudge.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries({ queryKey: options.queryKey }),
@@ -91,6 +151,8 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
   );
   if (!submission) return null;
   const pending = isPending(submission.verdict);
+  // While a run is in progress, the testcases done so far; afterwards the stored ones.
+  const results = run?.results ?? submission.results;
 
   const tabs = [
     ...(submission.compileMessage
@@ -106,14 +168,12 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
           },
         ]
       : []),
-    ...(submission.results.length > 0
+    ...(results.length > 0
       ? [
           {
             id: 'testcases',
-            label: `Testcases (${submission.results.length})`,
-            content: (
-              <DataTable data={submission.results} columns={resultColumns} rowKey={(r) => r.testcaseId} empty={null} />
-            ),
+            label: run ? `Testcases (${results.length} of ${run.total})` : `Testcases (${results.length})`,
+            content: <DataTable data={results} columns={resultColumns} rowKey={(r) => r.testcaseId} empty={null} />,
           },
         ]
       : []),
@@ -171,7 +231,16 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
           />
         </div>
 
-        {pending && <Callout>Waiting for a judge… this page updates by itself.</Callout>}
+        {pending && (
+          <Callout>
+            {submission.verdict === Verdict.WAIT
+              ? 'Waiting for a judge…'
+              : run
+                ? `Judging… ${run.results.length} of ${run.total} testcases done.`
+                : 'Judging…'}{' '}
+            This page updates by itself.
+          </Callout>
+        )}
 
         {submission.comment && (
           <Card title="Comment from the judges">

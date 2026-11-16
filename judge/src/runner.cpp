@@ -286,7 +286,7 @@ std::optional<Runner::Failure> Runner::build(const LanguageSpec& spec, const std
   return std::nullopt;
 }
 
-Report Runner::judge(const Task& task) {
+Report Runner::judge(const Task& task, const Progress& progress) {
   const auto language = config_.languages.find(task.language);
   if (language == config_.languages.end()) {
     return failure(task, Verdict::JudgeError, "This judge does not support language \"" + task.language + "\"");
@@ -340,6 +340,7 @@ Report Runner::judge(const Task& task) {
       if (!task.checker) return checker::compare_files(expected_path, output_path);
       return run_checker(checker_box, io / "checker.log", input_path, output_path, expected_path);
     }));
+    if (progress) progress(testcase, report.results.back());
   }
   return report;
 }

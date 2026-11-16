@@ -79,6 +79,11 @@ class ApiClient {
   std::optional<Task> fetch(const std::vector<std::string>& languages);
   /** Downloads one testcase file ("input" or "output") to `destination`. */
   void download_testdata(int testcase_id, const std::string& kind, const std::string& destination);
+  /**
+   * Tells the API one testcase of a running submission is done (`ordinal` of
+   * `total`), for the pages watching it. Nothing depends on it arriving.
+   */
+  void progress(int submission_id, int ordinal, int total, const TestResult& result);
   void report(const Report& report);
 
  private:
