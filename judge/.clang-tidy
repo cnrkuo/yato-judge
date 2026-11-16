@@ -1,16 +1,3 @@
-# Static analysis for the judge: `pnpm lint:judge` (needs a configured build
-# directory, judge/build, for compile_commands.json).
-#
-# Left out on purpose:
-# - the low-level cppcoreguidelines-pro-* / *-avoid-c-arrays family: the
-#   sandbox talks to POSIX (fork, pipes, execvp argv, rusage) directly;
-# - readability-magic-numbers and identifier-length: noisy for unit
-#   conversions (1000 ms, 1024 KiB) and loop indices; constants that carry
-#   meaning are named in the code instead;
-# - cert-err33-c: would demand checking fprintf(stderr), strftime and
-#   signal(SIGINT); bugprone-unused-return-value covers the calls that matter;
-# - performance-enum-size: Verdict travels as an int; the others are tiny;
-# - modernize-use-trailing-return-type: a style choice the code does not make.
 Checks: >
   -*,
   bugprone-*,
@@ -28,7 +15,6 @@ Checks: >
   -readability-function-cognitive-complexity,
   -performance-enum-size
 CheckOptions:
-  # One-line `if (x) return y;` is the house style; anything longer gets braces.
   readability-braces-around-statements.ShortStatementLines: 1
   readability-implicit-bool-conversion.AllowPointerConditions: true
 WarningsAsErrors: '*'

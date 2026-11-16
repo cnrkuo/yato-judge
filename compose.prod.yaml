@@ -1,14 +1,3 @@
-# Production stack — prebuilt images, secrets from an env file.
-#
-#   pnpm docker:prod     (= sh docker/prod.sh: creates .env.production with
-#                         fresh secrets on first run, then builds and starts)
-#
-# Afterwards manage it with
-#   docker compose -f compose.prod.yaml --env-file .env.production <command>
-#
-# Only the web app is published (WEB_BIND:WEB_PORT). Put a TLS-terminating
-# reverse proxy in front of it: the session cookie is Secure by default.
-
 name: yato
 
 x-restart: &restart
@@ -22,24 +11,21 @@ services:
       POSTGRES_USER: yato
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run docker/prod.sh to create .env.production}
       POSTGRES_DB: yato
-    # PostgreSQL 18 keeps its data under /var/lib/postgresql/18/; a new
-    # volume name, so a PostgreSQL 16 volume is never opened by 18.
     volumes: [postgres18:/var/lib/postgresql]
     healthcheck:
-      test: ['CMD', 'pg_isready', '-U', 'yato']
+      test: ["CMD", "pg_isready", "-U", "yato"]
       interval: 5s
 
   rabbitmq:
     <<: *restart
     image: docker.io/library/rabbitmq:4-alpine
-    # RabbitMQ keys its data directory by host name; keep it fixed.
     hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: yato
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?run docker/prod.sh to create .env.production}
     volumes: [rabbitmq:/var/lib/rabbitmq]
     healthcheck:
-      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       start_period: 30s
 
@@ -57,9 +43,7 @@ services:
       JUDGE_TIMEOUT_SEC: ${JUDGE_TIMEOUT_SEC:-600}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-256}
     volumes: [api_data:/var/lib/yato/data]
-    # Judges on other machines connect here; publish it on a private
-    # interface (API_BIND) if you run any.
-    ports: ['${API_BIND:-127.0.0.1}:${API_PORT:-3001}:3001']
+    ports: ["${API_BIND:-127.0.0.1}:${API_PORT:-3001}:3001"]
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -77,11 +61,8 @@ services:
       SITE_NAME: ${SITE_NAME:-YATO Judge}
       SITE_TIMEZONE: ${SITE_TIMEZONE:-Asia/Taipei}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      # Which reverse proxies may set X-Forwarded-*; empty = loopback and
-      # private addresses. See apps/web/server.js.
-      TRUST_PROXY: ${TRUST_PROXY:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-256}
-    ports: ['${WEB_BIND:-0.0.0.0}:${WEB_PORT:-3000}:3000']
+    ports: ["${WEB_BIND:-0.0.0.0}:${WEB_PORT:-3000}:3000"]
     depends_on:
       api: { condition: service_healthy }
 
@@ -92,16 +73,11 @@ services:
       dockerfile: judge/Dockerfile
       secrets: [ca]
     image: yato/judge:${YATO_TAG:-latest}
-    # Each submission runs in its own nsjail jail. Creating its namespaces
-    # and mounts needs these relaxed (no extra capabilities, no devices);
-    # nsjail applies its own seccomp policy to every submission.
-    security_opt: [seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
+    security_opt:
+      [seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]
     environment:
       YATO_API_URL: http://api:3001
       YATO_JUDGE_TOKEN: ${JUDGE_TOKEN}
-    # Memory limits are enforced with a cgroup per run (MLE instead of RE for
-    # programs that allocate too much at once), which needs the host's cgroup
-    # tree, writable. Without it the judge falls back to rlimits and says so.
     cgroup: host
     volumes:
       - judge_work:/var/lib/yato-judge
@@ -110,8 +86,6 @@ services:
       api: { condition: service_healthy }
 
 secrets:
-  # Optional CA certificate (PEM text) for builds behind a TLS-intercepting
-  # proxy: BUILD_CA_CERT="$(cat proxy-ca.pem)". Empty when unset.
   ca:
     environment: BUILD_CA_CERT
 

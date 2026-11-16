@@ -1,4 +1,3 @@
-# The Dockerfiles copy sources explicitly; this keeps the build context small.
 **/node_modules
 **/dist
 **/build
