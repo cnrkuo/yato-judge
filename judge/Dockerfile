@@ -30,6 +30,8 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y -q --no-install-
 COPY --from=build /opt/nsjail/bin/nsjail /usr/local/bin/nsjail
 COPY --from=build /src/build/yato-judge /usr/local/bin/yato-judge
 COPY --from=build /src/build/judge_tests /usr/local/bin/judge-selftest
+COPY --from=build /src/build/testlib.h /usr/local/share/yato-judge/testlib.h
+ENV YATO_TESTLIB=/usr/local/share/yato-judge/testlib.h
 ENV YATO_API_URL=http://api:3001
 VOLUME /var/lib/yato-judge
 CMD ["yato-judge"]

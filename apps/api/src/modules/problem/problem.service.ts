@@ -86,6 +86,9 @@ export class ProblemService {
       memoryLimitKb: problem.memoryLimitKb,
       scoreMode: problem.scoreMode as ScoreMode,
       scoreGroups: problem.scoreGroups,
+      hasChecker: problem.checker !== '',
+      // Contestants could read the expected answers' logic out of it.
+      checker: canEdit ? problem.checker : '',
       testcaseCount: await this.problems.countTestcases(id),
       createdAt: problem.createdAt.toISOString(),
       updatedAt: problem.updatedAt.toISOString(),

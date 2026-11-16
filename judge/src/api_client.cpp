@@ -77,6 +77,13 @@ std::optional<Task> ApiClient::fetch(const std::vector<std::string>& languages) 
       entry.at("outputSha256").get_to(testcase.output_sha256);
       task.testcases.push_back(std::move(testcase));
     }
+    // Older APIs do not send the field at all.
+    if (const auto checker = item.find("checker"); checker != item.end() && !checker->is_null()) {
+      CheckerSource source;
+      checker->at("sha256").get_to(source.sha256);
+      checker->at("source").get_to(source.source);
+      task.checker = std::move(source);
+    }
     return task;
   } catch (const json::exception& error) {
     throw ApiError(std::string("malformed /judge/fetch response: ") + error.what());

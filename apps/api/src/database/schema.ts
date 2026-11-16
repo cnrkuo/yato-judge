@@ -86,6 +86,8 @@ export const problems = pgTable('problems', {
   memoryLimitKb: integer().notNull().default(262144),
   scoreMode: varchar({ length: 16 }).notNull().default('average'),
   scoreGroups: jsonb().$type<[number, number][]>().notNull().default([]),
+  /** C++ source of the problem's own checker; empty to compare with the expected output. */
+  checker: text().notNull().default(''),
   createdAt: createdAt(),
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow().$defaultFn(now),
 });

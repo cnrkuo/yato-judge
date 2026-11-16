@@ -223,6 +223,10 @@ export const ProblemSchema = type({
   memoryLimitKb: 'number.integer',
   scoreMode: ScoreModeSchema,
   scoreGroups: ScoreGroupsSchema,
+  /** Whether outputs are judged by the problem's own checker rather than compared. */
+  hasChecker: 'boolean',
+  /** The checker's C++ source; empty unless `canEdit`. */
+  checker: 'string',
   testcaseCount: 'number.integer',
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
@@ -243,6 +247,12 @@ export const ProblemUpdateInputSchema = type({
   'memoryLimitKb?': '4096 <= number.integer <= 4194304',
   'scoreMode?': ScoreModeSchema,
   'scoreGroups?': ScoreGroupsSchema,
+  /**
+   * C++ source of a checker, normally written with testlib.h and run as
+   * `checker <input> <output> <answer>`; empty to compare with the expected
+   * output instead.
+   */
+  'checker?': `string <= ${CODE_MAX_LENGTH}`,
 });
 
 export const TestcaseSchema = type({
@@ -522,6 +532,12 @@ export const JudgeTaskSchema = type({
     inputSha256: 'string',
     outputSha256: 'string',
   }).array(),
+  /** The problem's own checker; null to compare with the expected output. */
+  checker: type({
+    /** Hash of `source`: the judge caches the compiled checker under it. */
+    sha256: 'string',
+    source: 'string',
+  }).or('null'),
 });
 
 export const JudgeTestResultSchema = type({

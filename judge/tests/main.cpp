@@ -39,6 +39,11 @@ fs::path fresh_dir(const std::string& name) {
   return dir;
 }
 
+std::string testlib_path() {
+  const char* path = std::getenv("YATO_TESTLIB");
+  return path != nullptr ? path : YATO_TESTLIB_DEFAULT;
+}
+
 void write_file(const fs::path& path, const std::string& content) {
   std::ofstream(path, std::ios::binary | std::ios::trunc) << content;
 }

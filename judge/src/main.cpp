@@ -213,6 +213,9 @@ int main(int argc, char** argv) {
       return 1;
     }
     judge::log("INFO", "languages: " + join(languages, ", "));
+    if (!fs::is_regular_file(config.testlib_path)) {
+      judge::log("WARN", "no testlib.h at " + config.testlib_path + "; checkers that include it will not compile");
+    }
     judge::log("INFO", "judging for " + config.api_url);
 
     while (g_stop == 0) {

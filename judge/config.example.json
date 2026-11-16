@@ -22,7 +22,16 @@
   "output_limit_kb": 65536,
   "compile_time_ms": 15000,
   "compile_memory_kb": 2097152,
-  "max_processes": 64
+  "max_processes": 64,
+
+  // Problems may come with a checker: a C++ program, usually written with
+  // testlib.h, that decides whether an output is right. It is compiled once
+  // (and cached) with a copy of testlib.h next to it, then run in the sandbox
+  // as `checker <input> <output> <answer>` after every testcase.
+  "testlib_path": "/usr/local/share/yato-judge/testlib.h",
+  "checker_time_ms": 10000,
+  "checker_memory_kb": 1048576
+  // "checker_compile": ["/usr/bin/g++", "-std=c++20", "-O2", "-o", "checker", "checker.cpp"],
 
   // Optional: override or add languages. Keys are the API's language ids
   // (c, cpp, cpp23, clang-cpp17, clang-cpp23, py3). At start-up every

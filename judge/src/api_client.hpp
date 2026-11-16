@@ -22,6 +22,14 @@ struct Testcase {
   std::string output_sha256;
 };
 
+/** A problem's own checker; see `checker::interpret` for how its runs are read. */
+struct CheckerSource {
+  /** Hash of `source`, computed by the API; names the compiled checker in the cache. */
+  std::string sha256;
+  /** C++, normally written with testlib.h. */
+  std::string source;
+};
+
 /** One submission to judge, as handed out by `POST /judge/fetch`. */
 struct Task {
   int submission_id = 0;
@@ -31,6 +39,8 @@ struct Task {
   std::int64_t time_limit_ms = 0;
   std::int64_t memory_limit_kb = 0;
   std::vector<Testcase> testcases;
+  /** Unset for problems judged by comparing with the expected output. */
+  std::optional<CheckerSource> checker;
 };
 
 struct TestResult {
