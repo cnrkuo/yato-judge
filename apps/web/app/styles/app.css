@@ -30,6 +30,10 @@
   --oj-verdict-neutral: #b7b7b7; /* white: waiting, judging, JE, SE */
 }
 
+html {
+  font-size: 18px;
+}
+
 @font-face {
   font-family: "YATO Math";
   src: url("@fontsource/stix-two-math/files/stix-two-math-latin-400-normal.woff2") format("woff2");
