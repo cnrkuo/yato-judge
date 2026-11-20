@@ -38,6 +38,9 @@ html {
   font-family: "YATO Math";
   src: url("@fontsource/stix-two-math/files/stix-two-math-latin-400-normal.woff2") format("woff2");
   font-display: swap;
+  ascent-override: 80%;
+  descent-override: 25%;
+  line-gap-override: 0%;
 }
 
 .oj-verdict-accepted {
@@ -408,7 +411,7 @@ blockquote {
   margin-bottom: 1rem;
 }
 .oj-prose math {
-  font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "YATO Math", math;
+  font-family: "YATO Math", "Cambria Math", "STIX Two Math", "Latin Modern Math", math;
   font-size: 1.1em;
 }
 .oj-prose .math-display {
