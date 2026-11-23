@@ -66,12 +66,10 @@ describe('interface consistency', () => {
     expect(everything).not.toMatch(/prefers-color-scheme|data-bs-theme=['"]?light|setAttribute\(['"]data-bs-theme/);
   });
 
-  it('self-hosts IBM Plex and loads no font from a CDN', () => {
+  it('self-hosts JetBrains Mono and loads no font from a CDN', () => {
     const root = read(join(appDir, 'root.tsx'));
-    expect(root).toMatch(/@fontsource\/ibm-plex-sans\//);
-    expect(root).toMatch(/@fontsource\/ibm-plex-mono\//);
-    expect(read(join(appDir, 'styles/app.css'))).toMatch(/--bs-font-sans-serif:\s*['"]IBM Plex Sans['"]/);
-    expect(read(join(appDir, 'styles/app.css'))).toMatch(/--bs-font-monospace:\s*['"]IBM Plex Mono['"]/);
+    expect(root).toMatch(/@fontsource\/jetbrains-mono\//);
+    expect(read(join(appDir, 'styles/app.css'))).toMatch(/--bs-font-monospace:\s*['"]JetBrains Mono['"]/);
     expect(offenders(sources, /fonts\.(googleapis|gstatic)\.com|use\.typekit|fonts\.bunny/)).toEqual([]);
   });
 

@@ -1,11 +1,11 @@
 :root[data-bs-theme="dark"] {
   --bs-font-sans-serif:
-    "IBM Plex Sans", system-ui, -apple-system, "Sarasa UI TC", "Sarasa Gothic TC", "Source Han Sans TW VF",
+    system-ui, -apple-system, "Sarasa UI TC", "Sarasa Gothic TC", "Source Han Sans TW VF",
     "Noto Sans TC VF", "Source Han Sans TC", "Noto Sans TC", "PingFang TC",
     "Microsoft JhengHei UI", "Microsoft JhengHei", "-apple-system", "BlinkMacSystemFont", "ui-sans-serif", "system-ui",
     "Segoe UI", "Roboto", "Ubuntu", "Cantarell", "Noto Sans", "Comic Sans MS", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --bs-font-monospace:
-    "IBM Plex Mono", ui-monospace, "SFMono-Regular", "SF Mono", "Menlo", "Cascadia Mono", "Consolas", "Ubuntu Mono", "Roboto Mono",
+    "JetBrains Mono", ui-monospace, "IBM Plex Mono", "SFMono-Regular", "SF Mono", "Menlo", "Cascadia Mono", "Consolas", "Ubuntu Mono", "Roboto Mono",
     "DejaVu Sans Mono", "Liberation Mono", "Sarasa Mono TC", "Sarasa Fixed TC", monospace;
 
   --bs-border-radius: 0.125rem;
