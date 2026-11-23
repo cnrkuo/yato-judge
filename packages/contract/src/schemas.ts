@@ -339,6 +339,8 @@ export const SubmissionSchema = SubmissionSummarySchema.merge({
   results: TestResultSchema.array(),
   judgedAt: TimestampSchema.or('null'),
   canRejudge: 'boolean',
+  /** Whether the viewer may read the problem's testdata, so results can link to their testcases. */
+  canInspectTestdata: 'boolean',
 });
 
 /** What `submission.watch` streams while a submission is being judged. */
