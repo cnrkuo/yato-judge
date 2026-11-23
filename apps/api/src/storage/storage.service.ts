@@ -27,6 +27,23 @@ export class StorageService {
     return fs.readFile(this.pathOf(key));
   }
 
+  /** The first `length` bytes of a file, or all of it when it is shorter; the rest is never read. */
+  async head(key: string, length: number): Promise<Uint8Array> {
+    const file = await fs.open(this.pathOf(key));
+    try {
+      const buffer = new Uint8Array(length);
+      let filled = 0;
+      while (filled < length) {
+        const { bytesRead } = await file.read(buffer, filled, length - filled, filled);
+        if (bytesRead === 0) break;
+        filled += bytesRead;
+      }
+      return buffer.subarray(0, filled);
+    } finally {
+      await file.close();
+    }
+  }
+
   /** Deletes a file or a whole directory tree; missing keys are ignored. */
   async delete(key: string): Promise<void> {
     await fs.rm(this.pathOf(key), { recursive: true, force: true });

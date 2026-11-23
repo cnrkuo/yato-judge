@@ -269,6 +269,26 @@ export const TestcaseSchema = type({
   outputSize: 'number.integer',
 });
 
+/** The start of a testdata file (`TESTDATA_PREVIEW_BYTES` at most), as text. */
+export const TestdataPreviewSchema = type({
+  /** Empty when `binary`. */
+  text: 'string',
+  /** Whether the file goes on beyond `text`. */
+  truncated: 'boolean',
+  /** The file is not UTF-8 text (or holds NUL bytes): it can only be downloaded. */
+  binary: 'boolean',
+});
+
+/** One testcase with the start of its input and of its expected output. */
+export const TestcasePreviewSchema = type({
+  testcase: TestcaseSchema,
+  input: TestdataPreviewSchema,
+  output: TestdataPreviewSchema,
+});
+
+/** Which file of a testcase: what the program reads, or the expected answer. */
+export const TestcaseFileKindSchema = type("'input' | 'output'");
+
 export const AttachmentSchema = type({
   name: 'string',
   size: 'number.integer',

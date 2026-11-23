@@ -163,5 +163,7 @@ export const ContestPhase = {
 export type ContestPhase = (typeof ContestPhase)[keyof typeof ContestPhase];
 
 export const CODE_MAX_LENGTH = 100_000;
+/** How much of each testdata file a testcase preview shows, in bytes; the rest is downloaded. */
+export const TESTDATA_PREVIEW_BYTES = 64 * 1024;
 /** Longest self-introduction on a profile, in characters. */
 export const INTRODUCTION_MAX_LENGTH = 2000;

@@ -5,7 +5,8 @@
  *
  *   pnpm --filter @yato/web test:e2e
  *
- * Signs in as an administrator, creates a problem with testdata, submits a
+ * Signs in as an administrator, creates a problem with testdata (and reads a
+ * testcase back), submits a
  * correct solution in every language plus a few wrong ones, and checks each
  * verdict. Then exercises the problem editor's forms (rejudge, attachments)
  * and the judge list.
@@ -106,6 +107,17 @@ async function createProblem(page) {
   await page.click('button:has-text("Upload testcases")');
   await page.waitForSelector('text=now has 2 testcases');
   check(true, 'testdata uploaded');
+
+  // Inspecting testdata: a testcase's page shows its files, which also download whole.
+  await page.getByRole('link', { name: '1', exact: true }).click();
+  await page.waitForURL(/\/problems\/\d+\/testcases\/\d+$/);
+  // The address changes a moment before the page does.
+  await page.locator('h1', { hasText: 'Testcase' }).waitFor();
+  check(((await page.textContent('main')) ?? '').includes('1 2'), 'testcase page shows the input');
+  const input = await page.request.get(`${page.url()}/input`);
+  const answer = await page.request.get(`${page.url()}/answer`);
+  check(input.ok() && (await input.text()) === '1 2\n', 'testcase input downloads whole');
+  check(answer.ok() && (await answer.text()) === '3\n', 'testcase answer downloads whole');
   return id;
 }
 

@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { TESTDATA_PREVIEW_BYTES } from '@yato/contract';
 import type { Actor } from '../../common/actor.js';
 import { sha256 } from '../../common/crypto.js';
-import { BadRequestError } from '../../common/errors.js';
+import { BadRequestError, NotFoundError } from '../../common/errors.js';
 import { config } from '../../config.js';
 import { StorageService } from '../../storage/storage.service.js';
 import { ProblemRepository } from './problem.repository.js';
 import { ProblemService } from './problem.service.js';
-import { type HashedTestcase, mergeTestcases, orphanedHashes } from './testdata.js';
+import { type HashedTestcase, mergeTestcases, orphanedHashes, previewOf } from './testdata.js';
+
+export type TestcaseFileKind = 'input' | 'output';
+
 import { readTestdataArchive, type TestcaseFiles } from './testdata-archive.js';
 
 /**
@@ -15,7 +19,7 @@ import { readTestdataArchive, type TestcaseFiles } from './testdata-archive.js';
  */
 const MAX_TESTDATA_EXPANSION = 4;
 
-/** A problem's testcases: zip uploads, listing and removal. Editors only. */
+/** A problem's testcases: zip uploads, listing, inspection and removal. Editors only. */
 @Injectable()
 export class TestdataService {
   constructor(
@@ -56,6 +60,42 @@ export class TestdataService {
     await this.problemService.editable(actor, problemId);
     await this.problems.replaceTestcases(problemId, []);
     await this.storage.delete(StorageService.testdataDir(problemId));
+  }
+
+  /** The start of a testcase's input and expected output; only that much is read from disk. */
+  async preview(actor: Actor, problemId: number, testcaseId: number) {
+    const testcase = await this.find(actor, problemId, testcaseId);
+    const head = (sha256: string, size: number) =>
+      this.storage
+        .head(StorageService.testdataKey(problemId, sha256), TESTDATA_PREVIEW_BYTES)
+        .then((bytes) => previewOf(bytes, size));
+    const [input, output] = await Promise.all([
+      head(testcase.inputSha256, testcase.inputSize),
+      head(testcase.outputSha256, testcase.outputSize),
+    ]);
+    const { id, ordinal, name, inputSize, outputSize } = testcase;
+    return { testcase: { id, ordinal, name, inputSize, outputSize }, input, output };
+  }
+
+  /** A testcase file in full, named as it was uploaded: `<name>.in` or `<name>.ans`. */
+  async file(actor: Actor, problemId: number, testcaseId: number, kind: TestcaseFileKind): Promise<File> {
+    const testcase = await this.find(actor, problemId, testcaseId);
+    const hash = kind === 'input' ? testcase.inputSha256 : testcase.outputSha256;
+    const data = await this.storage.get(StorageService.testdataKey(problemId, hash));
+    return new File([new Uint8Array(data)], `${testcase.name}.${kind === 'input' ? 'in' : 'ans'}`, {
+      type: 'application/octet-stream',
+    });
+  }
+
+  /**
+   * A testcase of a problem the actor may edit. One of another problem is
+   * "not found", so the problem checked is always the one it belongs to.
+   */
+  private async find(actor: Actor, problemId: number, testcaseId: number) {
+    await this.problemService.editable(actor, problemId);
+    const testcase = await this.problems.findTestcase(testcaseId);
+    if (testcase?.problemId !== problemId) throw new NotFoundError('Testcase');
+    return testcase;
   }
 
   private async storeFiles(problemId: number, testcases: TestcaseFiles[]): Promise<HashedTestcase[]> {

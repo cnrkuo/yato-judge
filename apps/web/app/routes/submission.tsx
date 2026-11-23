@@ -116,8 +116,23 @@ function useLiveRun(id: number, pending: boolean, onSnapshot: (submission: Submi
   return { run: pending ? run : null, connected };
 }
 
-const resultColumns: Column<Result>[] = [
-  { id: 'n', header: '#', cell: (r) => r.ordinal + 1 },
+/**
+ * `testcaseBase`: where testcases of the problem are inspected, for those
+ * who may; their numbers then link to the data each one was judged on.
+ */
+const resultColumns = (testcaseBase: string | null): Column<Result>[] => [
+  {
+    id: 'n',
+    header: '#',
+    cell: (r) =>
+      testcaseBase ? (
+        <Link to={`${testcaseBase}/${r.testcaseId}`} aria-label={`Testcase ${r.ordinal + 1}`}>
+          {r.ordinal + 1}
+        </Link>
+      ) : (
+        r.ordinal + 1
+      ),
+  },
   {
     id: 'verdict',
     header: 'Verdict',
@@ -173,7 +188,17 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
           {
             id: 'testcases',
             label: run ? `Testcases (${results.length} of ${run.total})` : `Testcases (${results.length})`,
-            content: <DataTable data={results} columns={resultColumns} rowKey={(r) => r.testcaseId} empty={null} />,
+            content: (
+              <DataTable
+                data={results}
+                columns={resultColumns(
+                  // Administrators, as the API decides when it offers a rejudge.
+                  submission.canRejudge ? `/problems/${submission.problem.id}/testcases` : null,
+                )}
+                rowKey={(r) => r.testcaseId}
+                empty={null}
+              />
+            ),
           },
         ]
       : []),

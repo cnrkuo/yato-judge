@@ -36,6 +36,30 @@ export function mergeTestcases(
     .map((testcase, ordinal) => ({ ...testcase, ordinal }));
 }
 
+export interface TestdataPreview {
+  text: string;
+  truncated: boolean;
+  binary: boolean;
+}
+
+/**
+ * Shows the start of a testdata file (`head`, of a file `size` bytes long)
+ * as text. Files with NUL bytes or invalid UTF-8 are binary and show
+ * nothing. A character cut in half by the end of `head` is left out, and
+ * a byte-order mark is kept: it is part of the data a program reads.
+ */
+export function previewOf(head: Uint8Array, size: number): TestdataPreview {
+  const truncated = size > head.byteLength;
+  if (head.includes(0)) return { text: '', truncated, binary: true };
+  try {
+    const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+    // `stream` holds back an incomplete character at the end instead of failing on it.
+    return { text: decoder.decode(head, { stream: truncated }), truncated, binary: false };
+  } catch {
+    return { text: '', truncated, binary: true };
+  }
+}
+
 /** Content hashes the old set used that the new set no longer references. */
 export function orphanedHashes(previous: readonly StoredTestcase[], current: readonly StoredTestcase[]): string[] {
   const kept = new Set(current.flatMap((t) => [t.inputSha256, t.outputSha256]));
