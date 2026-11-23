@@ -3,6 +3,8 @@ import {
   ContestPhase,
   ContestProblemState,
   type ContestStyle,
+  LANGUAGES,
+  type Language,
   PARTICIPATING_STATES,
   RegisterType,
   TeamState,
@@ -28,10 +30,16 @@ export interface ContestInput {
   registerPassword: string;
   freezeSec: number;
   penaltySec: number;
+  /** Languages participants may submit in; empty for any. */
+  languages: Language[];
   problems: ContestProblemInput[];
 }
 
 const isParticipating = (state: number) => PARTICIPATING_STATES.includes(state as TeamState);
+
+/** Allowed languages as stored: once each, in menu order. */
+const normalizeLanguages = (languages: readonly Language[]): Language[] =>
+  LANGUAGES.filter((language) => languages.includes(language));
 
 function checkWindow({ startAt, endAt }: TimeWindow): void {
   if (endAt <= startAt) throw new BadRequestError('The contest must end after it starts');
@@ -99,6 +107,7 @@ export class ContestService {
       description: contest.description,
       freezeSec: contest.freezeSec,
       penaltySec: contest.penaltySec,
+      languages: contest.languages as Language[],
       myState,
       canManage,
       canEnter,
@@ -125,28 +134,36 @@ export class ContestService {
       registerPassword: contest.registerPassword,
       freezeSec: contest.freezeSec,
       penaltySec: contest.penaltySec,
+      languages: contest.languages as Language[],
       problems: problems.map(({ problemId, tag, state }) => ({ problemId, tag, state: state as ContestProblemState })),
     };
   }
 
   async create(actor: Actor, input: ContestInput): Promise<{ id: number }> {
     requireAdmin(actor);
-    const { problems, startAt, endAt, ...fields } = input;
+    const { problems, startAt, endAt, languages, ...fields } = input;
     const { window } = resolveWindow({ startAt, endAt });
     checkWindow(window);
     await this.checkProblems(problems);
-    const id = await this.contests.create({ ...fields, ...window, ownerId: actor.id }, problems);
+    const id = await this.contests.create(
+      { ...fields, ...window, languages: normalizeLanguages(languages), ownerId: actor.id },
+      problems,
+    );
     return { id };
   }
 
   async update(actor: Actor, id: number, input: Partial<ContestInput>): Promise<void> {
     requireAdmin(actor);
     const { contest } = await this.load(id);
-    const { problems, startAt, endAt, ...fields } = input;
+    const { problems, startAt, endAt, languages, ...fields } = input;
     const { patch, window } = resolveWindow({ startAt, endAt }, contest);
     checkWindow(window);
     if (problems) await this.checkProblems(problems);
-    await this.contests.update(id, { ...fields, ...patch }, problems);
+    await this.contests.update(
+      id,
+      { ...fields, ...patch, ...(languages && { languages: normalizeLanguages(languages) }) },
+      problems,
+    );
   }
 
   private async checkProblems(problems: ContestProblemInput[]): Promise<void> {
@@ -216,6 +233,9 @@ export class ContestService {
    *   final standings by setting the freeze to 0.
    * - Managers always see everything.
    * - HIDDEN teams appear only to managers and to themselves.
+   * - Only submissions in the contest's allowed languages count. They are
+   *   refused at submission time already; this also covers ones made before
+   *   their author registered, or before the allowed languages changed.
    */
   async scoreboard(actor: Actor, id: number) {
     const now = new Date();
@@ -242,6 +262,7 @@ export class ContestService {
       users.map((u) => u.id),
       contest.startAt,
       frozen ? freezeAt : contest.endAt,
+      contest.languages,
     );
 
     const board = buildScoreboard(contest, problems, users, submissions);

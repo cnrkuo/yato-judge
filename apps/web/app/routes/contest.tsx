@@ -25,6 +25,7 @@ import {
   UserLink,
   useRoot,
 } from '~/ui';
+import { languageName } from '~/ui/code';
 import { type Column, DataTable } from '~/ui/data-table';
 import type { Route } from './+types/contest';
 
@@ -139,6 +140,7 @@ export default function Contest({ loaderData: contest, actionData }: Route.Compo
               {formatDuration((Date.parse(contest.endAt) - Date.parse(contest.startAt)) / 1000)})
             </span>
             <span>{contest.style === ContestStyle.IOI ? 'IOI rules' : 'ICPC rules'}</span>
+            {contest.languages.length > 0 && <span>{contest.languages.map(languageName).join(', ')} only</span>}
             <span>
               {contest.participants} participant{contest.participants === 1 ? '' : 's'}
             </span>

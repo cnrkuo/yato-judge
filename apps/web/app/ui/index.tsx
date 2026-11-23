@@ -199,6 +199,20 @@ export function Control({ children }: { children: ReactElement }) {
   return <>{control(children)}</>;
 }
 
+/**
+ * Several checkboxes (`<CheckField>`s) under one label. A `<Field>` is a
+ * `<label>` and holds exactly one control, so a group is a fieldset.
+ */
+export function CheckGroup({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <fieldset className={css.field}>
+      <legend className={css.groupLabel}>{label}</legend>
+      {children}
+      {hint && <span className={`d-block ${css.fieldHint}`}>{hint}</span>}
+    </fieldset>
+  );
+}
+
 export function CheckField({ label, ...props }: { label: ReactNode } & ComponentProps<'input'>) {
   return (
     <label className={css.check}>

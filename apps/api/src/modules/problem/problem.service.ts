@@ -11,6 +11,8 @@ import { type ProblemPatch, ProblemRepository, type ProblemWithOwner } from './p
 export interface ProblemAccess extends ProblemWithOwner {
   canEdit: boolean;
   canSubmit: boolean;
+  /** Languages the actor may submit in (see `contestGrant`). */
+  languages: readonly Language[];
 }
 
 @Injectable()
@@ -32,14 +34,19 @@ export class ProblemService {
 
     const direct = satisfies(actor, owner, problem.contentAccess);
     const canEdit = isAdmin(actor) && direct;
-    // Only consult contests when the direct rules do not already settle it.
-    const needGrant = !direct || (!problem.submitOpen && !canEdit);
+    // Contests matter when the direct rules do not let the actor read the
+    // problem, and for anyone who may submit: a running contest can open
+    // submissions, and can restrict their languages even where the problem
+    // is open to all.
+    const needGrant = !direct || isUser(actor);
     const now = new Date();
     const grant = needGrant ? contestGrant(await this.contests.entriesFor(actor.id, id, now), now) : NO_GRANT;
     if (!direct && !grant.read) throw new ForbiddenError('You may not view this problem');
 
-    const canSubmit = isUser(actor) && (canEdit || (direct && problem.submitOpen) || grant.submit);
-    return { problem, owner, canEdit, canSubmit };
+    const { languages } = grant;
+    const canSubmit =
+      isUser(actor) && (canEdit || (direct && problem.submitOpen) || grant.submit) && languages.length > 0;
+    return { problem, owner, canEdit, canSubmit, languages };
   }
 
   /** Editing (statement, testdata, attachments) takes an administrator who may also see the problem. */
@@ -73,7 +80,7 @@ export class ProblemService {
   }
 
   async get(actor: Actor, id: number) {
-    const { problem, owner, canEdit, canSubmit } = await this.access(actor, id);
+    const { problem, owner, canEdit, canSubmit, languages } = await this.access(actor, id);
     return {
       id: problem.id,
       owner: { id: owner.id, username: owner.username },
@@ -87,6 +94,7 @@ export class ProblemService {
       scoreMode: problem.scoreMode as ScoreMode,
       scoreGroups: problem.scoreGroups,
       hasChecker: problem.checker !== '',
+      languages: [...languages],
       // Contestants could read the expected answers' logic out of it.
       checker: canEdit ? problem.checker : '',
       testcaseCount: await this.problems.countTestcases(id),

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AccessLevel, type Language, Verdict } from '@yato/contract';
+import { AccessLevel, type Language, languageName, Verdict } from '@yato/contract';
 import { type Actor, isAdmin, requireAdmin, requireUser } from '../../common/actor.js';
 import { ForbiddenError, NotFoundError } from '../../common/errors.js';
 import { type PageInput, pageOf } from '../../common/pagination.js';
@@ -51,8 +51,13 @@ export class SubmissionService {
   /** Accepts a submission; a judge machine picks it up asynchronously. */
   async create(actor: Actor, input: { problemId: number; language: Language; code: string }): Promise<{ id: number }> {
     requireUser(actor);
-    const { canSubmit } = await this.problemService.access(actor, input.problemId);
+    const { canSubmit, languages } = await this.problemService.access(actor, input.problemId);
     if (!canSubmit) throw new ForbiddenError('Submissions are closed for this problem');
+    if (!languages.includes(input.language)) {
+      throw new ForbiddenError(
+        `Your contest does not allow ${languageName(input.language)} for this problem; use ${languages.map(languageName).join(', ')}`,
+      );
+    }
     // Reserve the id, queue the insert, answer. The row appears as soon as
     // the write-queue consumer gets to it (normally within milliseconds).
     const id = await this.submissions.reserveId();
@@ -73,12 +78,16 @@ export class SubmissionService {
     return pageOf(rows.map(toSummary), total, { page, pageSize });
   }
 
-  /** What counts for a contest: its problems, during `[startAt, endAt)`, as on its scoreboard. */
+  /**
+   * What counts for a contest: its problems, during `[startAt, endAt)`, in
+   * the languages it allows, as on its scoreboard.
+   */
   private async contestWindow(contestId: number): Promise<NonNullable<SubmissionFilter['within']>> {
     const found = await this.contests.findById(contestId);
     if (!found) throw new NotFoundError('Contest');
     const problems = await this.contests.listProblems(contestId);
-    return { problemIds: problems.map((p) => p.problemId), from: found.contest.startAt, to: found.contest.endAt };
+    const { startAt, endAt, languages } = found.contest;
+    return { problemIds: problems.map((p) => p.problemId), from: startAt, to: endAt, languages };
   }
 
   async get(actor: Actor, id: number) {

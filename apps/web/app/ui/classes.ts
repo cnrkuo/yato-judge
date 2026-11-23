@@ -98,6 +98,8 @@ export const css = {
   // ---- forms
   field: 'd-block mb-0',
   fieldLabel: 'form-label',
+  /** A fieldset's legend, sized like a field label: Bootstrap's reboot sizes legends as headings. */
+  groupLabel: 'form-label fs-6',
   fieldHint: 'form-text',
   // `oj-control` gives fields a border visible against the page (3 : 1).
   input: 'form-control oj-control',

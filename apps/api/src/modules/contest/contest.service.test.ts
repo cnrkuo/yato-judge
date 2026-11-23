@@ -1,4 +1,4 @@
-import { ContestProblemState, ContestStyle, RegisterType, TeamState } from '@yato/contract';
+import { ContestProblemState, ContestStyle, Language, RegisterType, TeamState } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
 import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError } from '../../common/errors.js';
 import { admin, fake, guest, minutesFrom, user } from '../../testing/fixtures.js';
@@ -19,6 +19,7 @@ const contestRow = (overrides: Record<string, unknown> = {}) => ({
   registerPassword: 'swordfish',
   freezeSec: 0,
   penaltySec: 1200,
+  languages: [] as string[],
   ...overrides,
 });
 
@@ -89,6 +90,7 @@ describe('ContestService.create', () => {
     registerPassword: '',
     freezeSec: 0,
     penaltySec: 0,
+    languages: [] as Language[],
     problems: [
       { problemId: 1, tag: 'A', state: ContestProblemState.NORMAL },
       { problemId: 2, tag: 'B', state: ContestProblemState.NORMAL },
@@ -118,6 +120,46 @@ describe('ContestService.create', () => {
 
   it('is for administrators only', async () => {
     await expect(service().service.create(user, input)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('stores the allowed languages once each, in menu order; none means any', async () => {
+    const { service: contests, calls } = service();
+    const languages = [Language.PYTHON3, Language.CPP, Language.PYTHON3];
+    await contests.create(admin, { ...input, languages });
+    expect(calls.create[0]?.[0]).toMatchObject({ languages: [Language.CPP, Language.PYTHON3] });
+    await contests.create(admin, input);
+    expect(calls.create[1]?.[0]).toMatchObject({ languages: [] });
+  });
+});
+
+describe('ContestService.update', () => {
+  const updates: unknown[][] = [];
+  const contests = service(contestRow(), { update: async (...args: unknown[]) => void updates.push(args) }).service;
+
+  it('changes the allowed languages only when given', async () => {
+    updates.length = 0;
+    await contests.update(admin, 1, { languages: [Language.CPP23, Language.C] });
+    expect(updates[0]?.[1]).toEqual({ languages: [Language.C, Language.CPP23] });
+    await contests.update(admin, 1, { title: 'Renamed' });
+    expect(updates[1]?.[1]).toEqual({ title: 'Renamed' });
+  });
+});
+
+describe('ContestService.get and settings', () => {
+  const restricted = contestRow({ languages: [Language.CPP] });
+  const repo = { listParticipants: async () => [], listProblems: async () => [] };
+
+  it('tells everyone, participants or not, which languages the contest allows', async () => {
+    await expect(service(restricted, repo).service.get(guest, 1)).resolves.toMatchObject({
+      languages: [Language.CPP],
+    });
+    await expect(service(contestRow(), repo).service.get(user, 1)).resolves.toMatchObject({ languages: [] });
+  });
+
+  it('reads the allowed languages back to administrators', async () => {
+    await expect(service(restricted, repo).service.settings(admin, 1)).resolves.toMatchObject({
+      languages: [Language.CPP],
+    });
   });
 });
 
@@ -158,5 +200,14 @@ describe('ContestService.scoreboard', () => {
     const managed = boardOf(contest);
     expect((await managed.service.scoreboard(admin, 1)).frozen).toBe(false);
     expect(managed.calls.forScoreboard[0]?.[3]).toEqual(contest.endAt);
+  });
+
+  it("counts only submissions in the contest's allowed languages", async () => {
+    const restricted = boardOf(contestRow({ languages: [Language.C, Language.CPP] }));
+    await restricted.service.scoreboard(user, 1);
+    expect(restricted.calls.forScoreboard[0]?.[4]).toEqual([Language.C, Language.CPP]);
+    const open = boardOf();
+    await open.service.scoreboard(user, 1);
+    expect(open.calls.forScoreboard[0]?.[4]).toEqual([]);
   });
 });

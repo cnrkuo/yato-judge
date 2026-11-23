@@ -29,9 +29,16 @@ export interface SubmissionFilter {
   /** The author's username, case-insensitive. */
   username?: string;
   verdict?: number;
-  /** Submissions to these problems made in `[from, to)`: those that count for a contest. */
-  within?: { problemIds: number[]; from: Date; to: Date };
+  /**
+   * Submissions to these problems made in `[from, to)`, in one of
+   * `languages` (any when empty): those that count for a contest.
+   */
+  within?: { problemIds: number[]; from: Date; to: Date; languages: readonly string[] };
 }
+
+/** Submissions in one of `languages`; no condition when the list is empty (any language). */
+const inLanguages = (languages: readonly string[]) =>
+  languages.length > 0 ? inArray(submissions.language, [...languages]) : undefined;
 
 export interface JudgedResult {
   verdict: number;
@@ -106,12 +113,13 @@ export class SubmissionRepository {
     return sql`${submissions.userId} = (select ${users.id} from ${users} where lower(${users.username}) = ${username.toLowerCase()})`;
   }
 
-  private madeWithin({ problemIds, from, to }: NonNullable<SubmissionFilter['within']>): SQL {
+  private madeWithin({ problemIds, from, to, languages }: NonNullable<SubmissionFilter['within']>): SQL {
     if (problemIds.length === 0) return sql`false`;
     return and(
       inArray(submissions.problemId, problemIds),
       gte(submissions.createdAt, from),
       lt(submissions.createdAt, to),
+      inLanguages(languages),
     ) as SQL;
   }
 
@@ -287,8 +295,17 @@ export class SubmissionRepository {
       .limit(limit);
   }
 
-  /** Submissions made in `[from, to)` that count towards a contest, oldest first. */
-  async forScoreboard(problemIds: number[], userIds: number[], from: Date, to: Date): Promise<ScoreboardSubmission[]> {
+  /**
+   * Submissions made in `[from, to)` that count towards a contest, oldest
+   * first: in one of `languages`, or in any when it is empty.
+   */
+  async forScoreboard(
+    problemIds: number[],
+    userIds: number[],
+    from: Date,
+    to: Date,
+    languages: readonly string[],
+  ): Promise<ScoreboardSubmission[]> {
     if (problemIds.length === 0 || userIds.length === 0) return [];
     return this.db
       .select({
@@ -309,6 +326,7 @@ export class SubmissionRepository {
           inArray(submissions.userId, userIds),
           gte(submissions.createdAt, from),
           lt(submissions.createdAt, to),
+          inLanguages(languages),
         ),
       )
       .orderBy(asc(submissions.id));
