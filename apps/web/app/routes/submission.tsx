@@ -192,8 +192,7 @@ export default function Submission({ loaderData, actionData }: Route.ComponentPr
               <DataTable
                 data={results}
                 columns={resultColumns(
-                  // Administrators, as the API decides when it offers a rejudge.
-                  submission.canRejudge ? `/problems/${submission.problem.id}/testcases` : null,
+                  submission.canInspectTestdata ? `/problems/${submission.problem.id}/testcases` : null,
                 )}
                 rowKey={(r) => r.testcaseId}
                 empty={null}

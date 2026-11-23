@@ -7,7 +7,7 @@ import type { JudgeTaskMessage, WriteCommand } from '../../messaging/commands.js
 import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { ContestRepository } from '../contest/contest.repository.js';
 import { ProblemRepository } from '../problem/problem.repository.js';
-import { ProblemService } from '../problem/problem.service.js';
+import { mayEdit, ProblemService } from '../problem/problem.service.js';
 import { Mailbox, type SubmissionBusEvent, SubmissionEvents } from './submission.events.js';
 import { type SubmissionFilter, SubmissionRepository } from './submission.repository.js';
 
@@ -115,6 +115,7 @@ export class SubmissionService {
       results: row.results.map(asResult),
       judgedAt: row.judgedAt?.toISOString() ?? null,
       canRejudge: admin,
+      canInspectTestdata: mayEdit(actor, found),
     };
   }
 

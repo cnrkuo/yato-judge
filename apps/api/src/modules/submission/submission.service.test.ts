@@ -1,4 +1,4 @@
-import { AccessLevel, LANGUAGES, Language, Verdict } from '@yato/contract';
+import { AccessLevel, LANGUAGES, Language, UserLevel, Verdict } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
 import { ForbiddenError, NotFoundError, UnauthorizedError } from '../../common/errors.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
@@ -132,6 +132,22 @@ describe('SubmissionService.get', () => {
     const hidden = { contentAccess: AccessLevel.HIDDEN, codeviewAccess: AccessLevel.OPEN };
     await expect(service(hidden).submissions.get(stranger, 5)).rejects.toThrow('You may not view this submission');
     await expect(service(hidden).submissions.get(admin, 5)).resolves.toMatchObject({ canRejudge: true });
+  });
+
+  it('links results to testdata only for those who may edit the problem, a stricter rule than rejudging', async () => {
+    const hidden = { contentAccess: AccessLevel.HIDDEN, codeviewAccess: AccessLevel.OPEN };
+    const peer = actor(31, UserLevel.ADMIN);
+    // The problem's owner is an administrator too; a peer may not see their hidden problem.
+    expect(await service(hidden).submissions.get(admin, 5)).toMatchObject({
+      canRejudge: true,
+      canInspectTestdata: true,
+    });
+    expect(await service(hidden).submissions.get(peer, 5)).toMatchObject({
+      canRejudge: true,
+      canInspectTestdata: false,
+    });
+    expect(await service(publicCode).submissions.get(peer, 5)).toMatchObject({ canInspectTestdata: true });
+    expect(await service(publicCode).submissions.get(user, 5)).toMatchObject({ canInspectTestdata: false });
   });
 
   it("shows contest participants each other's results (the scoreboard links them), but not the code", async () => {

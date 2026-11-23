@@ -8,6 +8,14 @@ import { contestGrant, NO_GRANT } from '../contest/grants.js';
 import { SubmissionRepository } from '../submission/submission.repository.js';
 import { type ProblemPatch, ProblemRepository, type ProblemWithOwner } from './problem.repository.js';
 
+/**
+ * Whether the actor may edit a problem (statement, testdata, attachments)
+ * and read what only editors see, like its testdata: an administrator
+ * who may also see the problem.
+ */
+export const mayEdit = (actor: Actor, { problem, owner }: ProblemWithOwner): boolean =>
+  isAdmin(actor) && satisfies(actor, owner, problem.contentAccess);
+
 export interface ProblemAccess extends ProblemWithOwner {
   canEdit: boolean;
   canSubmit: boolean;
@@ -33,7 +41,7 @@ export class ProblemService {
     const { problem, owner } = found;
 
     const direct = satisfies(actor, owner, problem.contentAccess);
-    const canEdit = isAdmin(actor) && direct;
+    const canEdit = mayEdit(actor, found);
     // Contests matter when the direct rules do not let the actor read the
     // problem, and for anyone who may submit: a running contest can open
     // submissions, and can restrict their languages even where the problem
@@ -49,14 +57,12 @@ export class ProblemService {
     return { problem, owner, canEdit, canSubmit, languages };
   }
 
-  /** Editing (statement, testdata, attachments) takes an administrator who may also see the problem. */
+  /** Loads a problem the actor may edit (`mayEdit`), or throws. */
   async editable(actor: Actor, id: number): Promise<ProblemWithOwner> {
     requireAdmin(actor);
     const found = await this.problems.findById(id);
     if (!found) throw new NotFoundError('Problem');
-    if (!satisfies(actor, found.owner, found.problem.contentAccess)) {
-      throw new ForbiddenError('You may not edit this problem');
-    }
+    if (!mayEdit(actor, found)) throw new ForbiddenError('You may not edit this problem');
     return found;
   }
 
