@@ -1,26 +1,30 @@
-import { CODE_MAX_LENGTH, LANGUAGE_LABEL, Language } from '@yato/contract';
+import { CODE_MAX_LENGTH, LANGUAGE_LABEL, LANGUAGES, Language, languageName } from '@yato/contract';
 import type { ChangeEvent } from 'react';
 import { useRef } from 'react';
 import { code as css, css as kit } from './classes';
 
-const languages = Object.values(Language);
-
-/** "C++17 (g++ -std=c++17 -O2)" → "C++17". */
-export const languageName = (language: Language) => {
-  const [name = language] = LANGUAGE_LABEL[language].split(' (');
-  return name;
-};
+export { languageName };
 
 export function parseLanguage(value: FormDataEntryValue | null): Language {
-  return languages.find((language) => language === value) ?? Language.CPP;
+  return LANGUAGES.find((language) => language === value) ?? Language.CPP;
 }
 
-export function LanguageSelect({ defaultValue = Language.CPP }: { defaultValue?: Language }) {
+/**
+ * Picks the language of a submission among `languages` (by default every
+ * one); `defaultValue` starts selected when it is among them.
+ */
+export function LanguageSelect({
+  languages = LANGUAGES,
+  defaultValue = Language.CPP,
+}: {
+  languages?: readonly Language[];
+  defaultValue?: Language;
+}) {
   return (
     <select
       className={`${kit.select} ${kit.inputWidth.auto}`}
       name="language"
-      defaultValue={defaultValue}
+      defaultValue={languages.includes(defaultValue) ? defaultValue : languages[0]}
       aria-label="Language">
       {languages.map((language) => (
         <option key={language} value={language}>

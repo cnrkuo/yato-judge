@@ -225,6 +225,11 @@ export const ProblemSchema = type({
   scoreGroups: ScoreGroupsSchema,
   /** Whether outputs are judged by the problem's own checker rather than compared. */
   hasChecker: 'boolean',
+  /**
+   * Languages the viewer may submit in: all of them, unless a running
+   * contest they take part in lists this problem and allows fewer.
+   */
+  languages: LanguageSchema.array(),
   /** The checker's C++ source; empty unless `canEdit`. */
   checker: 'string',
   testcaseCount: 'number.integer',
@@ -373,6 +378,8 @@ export const ContestSchema = ContestSummarySchema.merge({
   description: 'string',
   freezeSec: 'number.integer',
   penaltySec: 'number.integer',
+  /** Languages participants may submit in; empty when any language is allowed. */
+  languages: LanguageSchema.array(),
   myState: TeamStateSchema,
   canManage: 'boolean',
   /** Whether the viewer may currently see the problem set. */
@@ -398,6 +405,12 @@ const ContestFieldsSchema = type({
   registerPassword: 'string <= 100',
   freezeSec: `0 <= number.integer <= ${86_400 * 30}`,
   penaltySec: '0 <= number.integer <= 86400',
+  /**
+   * Languages participants may submit in while the contest runs, to its
+   * problems; empty to allow any. Submissions in other languages are refused
+   * and do not count on the scoreboard.
+   */
+  languages: LanguageSchema.array().atMostLength(64),
   problems: ContestProblemInputSchema.array().atMostLength(52),
 });
 
@@ -408,6 +421,9 @@ export const ContestCreateInputSchema = ContestFieldsSchema.merge({
   registerPassword: type('string <= 100').default(''),
   freezeSec: type(`0 <= number.integer <= ${86_400 * 30}`).default(3600),
   penaltySec: type('0 <= number.integer <= 86400').default(1200),
+  languages: LanguageSchema.array()
+    .atMostLength(64)
+    .default(() => []),
   problems: ContestProblemInputSchema.array()
     .atMostLength(52)
     .default(() => []),

@@ -1,4 +1,4 @@
-import { AccessLevel, ScoreMode } from '@yato/contract';
+import { AccessLevel, LANGUAGES, ScoreMode } from '@yato/contract';
 import { Form, Link, redirect, useNavigation } from 'react-router';
 import { ContestNav } from '~/components/contest-nav';
 import { Markdown } from '~/components/markdown';
@@ -138,8 +138,11 @@ export default function Problem({ loaderData, actionData }: Route.ComponentProps
                   <Notice result={actionData} />
                   <CodeInput />
                   <Cluster>
-                    <LanguageSelect />
+                    <LanguageSelect languages={problem.languages} />
                     <Button busy={busy}>Submit</Button>
+                    {problem.languages.length < LANGUAGES.length && (
+                      <Muted small>A contest you are taking part in allows only these languages.</Muted>
+                    )}
                   </Cluster>
                 </Stack>
               </Form>

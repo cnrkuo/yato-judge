@@ -1,4 +1,4 @@
-import { ContestProblemState, ContestStyle, RegisterType } from '@yato/contract';
+import { ContestProblemState, ContestStyle, LANGUAGES, RegisterType } from '@yato/contract';
 import { SITE_TIMEZONE } from './site.server';
 import { parseLocalInput } from './time';
 
@@ -44,6 +44,12 @@ export function parseContestForm(form: FormData) {
       error: 'Problems must be written one per line as "<tag> <problem id> [hidden|readonly]"',
     };
   }
+  // One checkbox per language. Every one checked means any language, so
+  // that languages added to the judge later are allowed as well.
+  const checked = form.getAll('languages');
+  const languages = LANGUAGES.filter((language) => checked.includes(language));
+  if (languages.length === 0) return { ok: false as const, error: 'Allow at least one language' };
+
   const registerType = Object.values(RegisterType).find((type) => String(type) === text('registerType'));
   return {
     ok: true as const,
@@ -57,6 +63,7 @@ export function parseContestForm(form: FormData) {
       registerPassword: text('registerPassword'),
       freezeSec: Math.round(Number(text('freezeMin')) * 60) || 0,
       penaltySec: Math.round(Number(text('penaltyMin')) * 60) || 0,
+      languages: languages.length === LANGUAGES.length ? [] : languages,
       problems,
     },
   };

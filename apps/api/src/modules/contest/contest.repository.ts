@@ -128,12 +128,13 @@ export class ContestRepository {
 
   /**
    * The started contests that list `problemId` visibly and have `userId` as
-   * a participant; `contestGrant()` turns them into access rights.
+   * a participant; `contestGrant()` turns them into access rights and
+   * language restrictions.
    */
   async entriesFor(userId: number, problemId: number, now: Date): Promise<ContestEntry[]> {
     if (userId === GUEST.id) return [];
     return this.db
-      .select({ endAt: contests.endAt, problemState: contestProblems.state })
+      .select({ endAt: contests.endAt, problemState: contestProblems.state, languages: contests.languages })
       .from(contestProblems)
       .innerJoin(contests, eq(contests.id, contestProblems.contestId))
       .innerJoin(contestUsers, and(eq(contestUsers.contestId, contests.id), eq(contestUsers.userId, userId)))

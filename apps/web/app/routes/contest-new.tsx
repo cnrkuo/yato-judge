@@ -40,6 +40,7 @@ export default function ContestNew({ loaderData, actionData }: Route.ComponentPr
           registerPassword: '',
           freezeSec: 3600,
           penaltySec: 1200,
+          languages: [],
           problems: '',
         }}
       />

@@ -15,6 +15,13 @@
       "when": 1794816419251,
       "tag": "0001_classy_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795402384049,
+      "tag": "0002_contest_languages",
+      "breakpoints": true
     }
   ]
 }

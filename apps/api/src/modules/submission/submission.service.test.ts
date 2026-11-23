@@ -1,4 +1,4 @@
-import { AccessLevel, Language, Verdict } from '@yato/contract';
+import { AccessLevel, LANGUAGES, Language, Verdict } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
 import { ForbiddenError, NotFoundError, UnauthorizedError } from '../../common/errors.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
@@ -38,12 +38,14 @@ const contestEnd = new Date('2026-12-01T05:00:00Z');
 
 /**
  * `readable`: whether the viewer may read the problem, as ProblemService
- * decides it (the owner's rules, or a contest the viewer takes part in).
+ * decides it (the owner's rules, or a contest the viewer takes part in);
+ * `languages`: what it allows them to submit in.
  */
 function service(
   problem: { contentAccess: number; codeviewAccess: number },
   canSubmit = true,
   readable = problem.contentAccess === AccessLevel.OPEN,
+  languages: readonly Language[] = LANGUAGES,
 ) {
   const published: [string, unknown][] = [];
   const filters: SubmissionFilter[] = [];
@@ -62,12 +64,12 @@ function service(
     fake<ProblemService>({
       access: async () => {
         if (!readable) throw new ForbiddenError('You may not view this problem');
-        return { canSubmit };
+        return { canSubmit, languages };
       },
     }),
     fake<ContestRepository>({
       findById: async (id: number) =>
-        id === 9 ? { contest: { startAt: contestStart, endAt: contestEnd } } : undefined,
+        id === 9 ? { contest: { startAt: contestStart, endAt: contestEnd, languages: [Language.CPP] } } : undefined,
       listProblems: async () => [{ problemId: 3 }, { problemId: 4 }],
     }),
     fake<MessageBroker>({ publish: async (queue: string, message: unknown) => void published.push([queue, message]) }),
@@ -96,6 +98,17 @@ describe('SubmissionService.create', () => {
     const input = { problemId: 3, language: Language.C, code: 'x' };
     await expect(service(publicCode).submissions.create(guest, input)).rejects.toThrow(UnauthorizedError);
     await expect(service(publicCode, false).submissions.create(user, input)).rejects.toThrow(ForbiddenError);
+  });
+
+  it("refuses a language the participant's running contest does not allow, and names the allowed ones", async () => {
+    const { submissions, published } = service(publicCode, true, true, [Language.CPP, Language.CPP23]);
+    await expect(
+      submissions.create(user, { problemId: 3, language: Language.PYTHON3, code: 'print(1)' }),
+    ).rejects.toThrow(new ForbiddenError('Your contest does not allow Python 3 for this problem; use C++17, C++23'));
+    expect(published).toEqual([]);
+    await expect(
+      submissions.create(user, { problemId: 3, language: Language.CPP23, code: 'int main(){}' }),
+    ).resolves.toEqual({ id: 77 });
   });
 });
 
@@ -141,11 +154,14 @@ describe('SubmissionService.rejudgeProblem', () => {
 });
 
 describe('SubmissionService.list', () => {
-  it('narrows to a contest: its problems, while it ran — like its scoreboard', async () => {
+  it('narrows to a contest: its problems, while it ran, in its languages — like its scoreboard', async () => {
     const { submissions, filters } = service(publicCode);
     await submissions.list(user, { page: 1, pageSize: 20, username: 'alice', contestId: 9 });
     expect(filters).toEqual([
-      { username: 'alice', within: { problemIds: [3, 4], from: contestStart, to: contestEnd } },
+      {
+        username: 'alice',
+        within: { problemIds: [3, 4], from: contestStart, to: contestEnd, languages: [Language.CPP] },
+      },
     ]);
   });
 

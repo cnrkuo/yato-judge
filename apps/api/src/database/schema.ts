@@ -180,6 +180,8 @@ export const contests = pgTable('contests', {
   registerPassword: varchar({ length: 100 }).notNull().default(''),
   freezeSec: integer().notNull().default(3600),
   penaltySec: integer().notNull().default(1200),
+  /** Language ids participants may submit in; empty when any language is allowed. */
+  languages: varchar({ length: 16 }).array().notNull().default([]),
   createdAt: createdAt(),
 });
 

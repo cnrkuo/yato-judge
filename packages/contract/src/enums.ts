@@ -100,6 +100,12 @@ export const LANGUAGE_LABEL: Record<Language, string> = {
   py3: 'Python 3',
 };
 
+/** Every language, in the order menus list them. */
+export const LANGUAGES: readonly Language[] = Object.values(Language);
+
+/** "C++17 (g++ -std=c++17 -O2)" → "C++17": the language without its compiler command. */
+export const languageName = (language: Language): string => LANGUAGE_LABEL[language].split(' (')[0] ?? language;
+
 export const ScoreMode = {
   /** 100 × accepted / total testcases. */
   AVERAGE: 'average',

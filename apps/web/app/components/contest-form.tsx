@@ -1,7 +1,7 @@
-import { ContestStyle, RegisterType } from '@yato/contract';
+import { ContestStyle, LANGUAGE_LABEL, LANGUAGES, type Language, RegisterType } from '@yato/contract';
 import { Form, useNavigation } from 'react-router';
 import { isoToLocalInput } from '~/lib/time';
-import { Button, Card, css, Field, Grid, Notice, Stack, useRoot } from '~/ui';
+import { Button, Card, CheckField, CheckGroup, css, Field, Grid, Notice, Stack, useRoot } from '~/ui';
 
 export interface ContestFormValues {
   title: string;
@@ -13,6 +13,8 @@ export interface ContestFormValues {
   registerPassword: string;
   freezeSec: number;
   penaltySec: number;
+  /** Allowed languages; empty for any, which shows every box checked. */
+  languages: Language[];
   /** Already formatted, one problem per line. */
   problems: string;
 }
@@ -95,6 +97,22 @@ export function ContestForm({
               <input type="number" name="freezeMin" min={0} defaultValue={Math.round(values.freezeSec / 60)} />
             </Field>
           </Grid>
+
+          <CheckGroup
+            label="Allowed languages"
+            hint="While the contest runs, participants can submit its problems only in the checked languages, from any page; submissions in other languages do not count on the scoreboard. With every box checked, any language is allowed, including ones added later.">
+            <Grid columns={2}>
+              {LANGUAGES.map((language) => (
+                <CheckField
+                  key={language}
+                  name="languages"
+                  value={language}
+                  label={LANGUAGE_LABEL[language]}
+                  defaultChecked={values.languages.length === 0 || values.languages.includes(language)}
+                />
+              ))}
+            </Grid>
+          </CheckGroup>
 
           <Field
             label="Problems"
