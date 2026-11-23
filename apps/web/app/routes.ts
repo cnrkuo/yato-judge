@@ -14,6 +14,8 @@ export default [
     route(':id', 'routes/problem.tsx'),
     route(':id/edit', 'routes/problem-edit.tsx'),
     route(':id/attachments/:name', 'routes/problem-attachment.ts'),
+    route(':id/testcases/:testcaseId', 'routes/problem-testcase.tsx'),
+    route(':id/testcases/:testcaseId/:file', 'routes/problem-testcase-file.ts'),
   ]),
 
   ...prefix('submissions', [index('routes/submissions.tsx'), route(':id', 'routes/submission.tsx')]),

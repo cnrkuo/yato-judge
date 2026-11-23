@@ -1,9 +1,10 @@
+import { TESTDATA_PREVIEW_BYTES } from '@yato/contract';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { sha256 } from '../../common/crypto.js';
-import { BadRequestError } from '../../common/errors.js';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors.js';
 import type { StorageService } from '../../storage/storage.service.js';
-import { admin, fake } from '../../testing/fixtures.js';
+import { admin, fake, user } from '../../testing/fixtures.js';
 import type { ProblemRepository } from './problem.repository.js';
 import type { ProblemService } from './problem.service.js';
 import { TestdataService } from './testdata.service.js';
@@ -69,5 +70,74 @@ describe('TestdataService.upload', () => {
     await expect(service.upload(admin, 5, zip({ 'readme.txt': 'hi', '1.in': 'only input' }))).rejects.toThrow(
       BadRequestError,
     );
+  });
+});
+
+describe('TestdataService preview and file', () => {
+  const testcase = {
+    id: 40,
+    problemId: 5,
+    ordinal: 2,
+    name: 'big 3',
+    inputSha256: 'in-hash',
+    outputSha256: 'out-hash',
+    inputSize: 200_000,
+    outputSize: 3,
+  };
+  const blobs: Record<string, string> = {
+    'problems/5/testdata/in-hash': '7 '.repeat(100_000),
+    'problems/5/testdata/out-hash': '42\n',
+  };
+
+  function inspect(editable: () => Promise<unknown> = async () => ({})) {
+    const heads: [string, number][] = [];
+    const service = new TestdataService(
+      fake<ProblemService>({ editable }),
+      fake<ProblemRepository>({ findTestcase: async (id: number) => (id === testcase.id ? testcase : undefined) }),
+      fake<StorageService>({
+        head: async (key: string, length: number) => {
+          heads.push([key, length]);
+          return new TextEncoder().encode(blobs[key]).subarray(0, length);
+        },
+        get: async (key: string) => Buffer.from(blobs[key] ?? ''),
+      }),
+    );
+    return { service, heads };
+  }
+
+  it('previews the start of both files, reading no more than the preview from disk', async () => {
+    const { service, heads } = inspect();
+    const preview = await service.preview(admin, 5, 40);
+    expect(preview.testcase).toEqual({ id: 40, ordinal: 2, name: 'big 3', inputSize: 200_000, outputSize: 3 });
+    expect(preview.input).toMatchObject({ truncated: true, binary: false });
+    expect(preview.input.text).toHaveLength(TESTDATA_PREVIEW_BYTES);
+    expect(preview.output).toEqual({ text: '42\n', truncated: false, binary: false });
+    expect(heads.map(([, length]) => length)).toEqual([TESTDATA_PREVIEW_BYTES, TESTDATA_PREVIEW_BYTES]);
+  });
+
+  it('downloads a file whole, named as uploaded', async () => {
+    const { service } = inspect();
+    const input = await service.file(admin, 5, 40, 'input');
+    expect(input.name).toBe('big 3.in');
+    expect(input.size).toBe(200_000);
+    const answer = await service.file(admin, 5, 40, 'output');
+    expect(answer.name).toBe('big 3.ans');
+    expect(await answer.text()).toBe('42\n');
+  });
+
+  it("treats another problem's testcase, or a replaced one, as not found", async () => {
+    const { service } = inspect();
+    await expect(service.preview(admin, 6, 40)).rejects.toThrow(NotFoundError);
+    await expect(service.file(admin, 6, 40, 'input')).rejects.toThrow(NotFoundError);
+    await expect(service.preview(admin, 5, 41)).rejects.toThrow(NotFoundError);
+  });
+
+  it('is for those who may edit the problem only', async () => {
+    const { service, heads } = inspect(async () => {
+      throw new ForbiddenError('Administrator permission required');
+    });
+    await expect(service.preview(user, 5, 40)).rejects.toThrow(ForbiddenError);
+    await expect(service.file(user, 5, 40, 'output')).rejects.toThrow(ForbiddenError);
+    expect(heads).toEqual([]);
   });
 });

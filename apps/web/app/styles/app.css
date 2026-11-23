@@ -354,6 +354,10 @@ blockquote {
 .oj-code-numbered .line {
   padding-left: 0;
 }
+.oj-code-scroll {
+  max-height: 36rem;
+  overflow-y: auto;
+}
 .oj-code-numbered .line::before {
   content: counter(line);
   counter-increment: line;

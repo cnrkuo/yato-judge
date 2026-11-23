@@ -38,6 +38,12 @@ export class ProblemController {
         await this.testdata.clear(actor, input.problemId);
         return OK;
       }),
+      previewTestcase: os.previewTestcase.handler(({ input }) =>
+        this.testdata.preview(actor, input.problemId, input.testcaseId),
+      ),
+      getTestcaseFile: os.getTestcaseFile.handler(({ input }) =>
+        this.testdata.file(actor, input.problemId, input.testcaseId, input.kind),
+      ),
 
       listAttachments: os.listAttachments.handler(({ input }) => this.attachments.list(actor, input.problemId)),
       uploadAttachment: os.uploadAttachment.handler(({ input }) =>

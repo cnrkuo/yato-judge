@@ -78,8 +78,20 @@ export function CodeInput({
  * Shows code highlighted on the server by `highlight()` (lib/highlight.server).
  * The HTML comes from Shiki, never from the author directly.
  */
-export function CodeView({ html, lineNumbers = true }: { html: string; lineNumbers?: boolean }) {
+export function CodeView({
+  html,
+  lineNumbers = true,
+  scroll = false,
+}: {
+  html: string;
+  lineNumbers?: boolean;
+  /** Scroll long content inside a block of limited height. */
+  scroll?: boolean;
+}) {
   return (
-    <div className={`${css.code} ${lineNumbers ? css.numbered : ''}`} dangerouslySetInnerHTML={{ __html: html }} />
+    <div
+      className={[css.code, lineNumbers && css.numbered, scroll && css.scroll].filter(Boolean).join(' ')}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

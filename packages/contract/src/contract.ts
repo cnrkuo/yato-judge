@@ -16,6 +16,8 @@ const base = oc.errors({
 
 const byId = type({ id: s.IdSchema });
 const byProblem = type({ problemId: s.IdSchema });
+/** A testcase of a problem; testcase ids change whenever testdata is uploaded. */
+const byTestcase = type({ problemId: s.IdSchema, testcaseId: s.IdSchema });
 const created = type({ id: 'number.integer' });
 
 const auth = {
@@ -46,6 +48,10 @@ const problem = {
     .input(type({ problemId: s.IdSchema, archive: s.FileSchema }))
     .output(type({ testcases: 'number.integer' })),
   clearTestdata: base.input(byProblem).output(s.OkSchema),
+  /** The start of one testcase's input and expected output, to read in the browser. */
+  previewTestcase: base.input(byTestcase).output(s.TestcasePreviewSchema),
+  /** One testcase file in full. */
+  getTestcaseFile: base.input(byTestcase.merge({ kind: s.TestcaseFileKindSchema })).output(s.FileSchema),
 
   listAttachments: base.input(byProblem).output(s.AttachmentSchema.array()),
   uploadAttachment: base.input(type({ problemId: s.IdSchema, file: s.FileSchema })).output(s.AttachmentSchema),

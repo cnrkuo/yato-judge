@@ -1,7 +1,8 @@
 import { AccessLevel, CODE_MAX_LENGTH, ScoreMode } from '@yato/contract';
 import type { ReactNode } from 'react';
-import { Form, useNavigation, useSubmit } from 'react-router';
+import { Form, Link, useNavigation, useSubmit } from 'react-router';
 import { type ActionResult, api, load, submit } from '~/lib/api.server';
+import { formatBytes } from '~/lib/files';
 import { idParam } from '~/lib/params';
 import { ACCESS_OPTIONS, formatScoreGroups, parseAccess, parseScoreGroups } from '~/lib/problem-form';
 import {
@@ -124,12 +125,42 @@ export const meta: Route.MetaFunction = ({ loaderData }) => [
 
 type Testcase = Route.ComponentProps['loaderData']['testcases'][number];
 
-const testcaseColumns: Column<Testcase>[] = [
-  { id: 'n', header: '#', cell: (t) => t.ordinal + 1 },
-  { id: 'name', header: 'Name', cell: (t) => <code>{t.name}</code> },
-  { id: 'input', header: 'Input', align: 'right', cell: (t) => `${t.inputSize} B` },
-  { id: 'answer', header: 'Answer', align: 'right', cell: (t) => `${t.outputSize} B` },
-];
+/** Names open a testcase's page; sizes download its files. */
+const testcaseColumns = (problemId: number): Column<Testcase>[] => {
+  const base = (t: Testcase) => `/problems/${problemId}/testcases/${t.id}`;
+  return [
+    { id: 'n', header: '#', cell: (t) => t.ordinal + 1 },
+    {
+      id: 'name',
+      header: 'Name',
+      cell: (t) => (
+        <Link to={base(t)}>
+          <code>{t.name}</code>
+        </Link>
+      ),
+    },
+    {
+      id: 'input',
+      header: 'Input',
+      align: 'right',
+      cell: (t) => (
+        <a href={`${base(t)}/input`} aria-label={`Download the input of ${t.name}`}>
+          {formatBytes(t.inputSize)}
+        </a>
+      ),
+    },
+    {
+      id: 'answer',
+      header: 'Answer',
+      align: 'right',
+      cell: (t) => (
+        <a href={`${base(t)}/answer`} aria-label={`Download the answer of ${t.name}`}>
+          {formatBytes(t.outputSize)}
+        </a>
+      ),
+    },
+  ];
+};
 
 export default function ProblemEdit({ loaderData, actionData }: Route.ComponentProps) {
   const { problem, testcases, attachments } = loaderData;
@@ -146,7 +177,7 @@ export default function ProblemEdit({ loaderData, actionData }: Route.ComponentP
       <Split aside="wide">
         <StatementCard problem={problem} notice={notice('statement')} pending={pending} />
         <Stack gap="lg">
-          <TestcasesCard testcases={testcases} notice={notice('testdata')} pending={pending} />
+          <TestcasesCard problemId={problem.id} testcases={testcases} notice={notice('testdata')} pending={pending} />
           <AttachmentsCard
             problemId={problem.id}
             attachments={attachments}
@@ -290,7 +321,12 @@ function StatementCard({ problem, notice, pending }: SectionProps & { problem: P
   );
 }
 
-function TestcasesCard({ testcases, notice, pending }: SectionProps & { testcases: Testcase[] }) {
+function TestcasesCard({
+  problemId,
+  testcases,
+  notice,
+  pending,
+}: SectionProps & { problemId: number; testcases: Testcase[] }) {
   const submit = useSubmit();
   return (
     <Card flush title={`Testcases (${testcases.length})`}>
@@ -304,7 +340,8 @@ function TestcasesCard({ testcases, notice, pending }: SectionProps & { testcase
             </Control>
             <small>
               A zip of <code>name.in</code> + <code>name.ans</code> (or <code>.out</code>) pairs. Uploading adds to the
-              existing testcases and overwrites those with the same name; they run in natural order of their names.
+              existing testcases and overwrites those with the same name; they run in natural order of their names. Open
+              a testcase to read it.
             </small>
             <Cluster justify="between">
               <Button variant="secondary" busy={pending === Intent.UPLOAD_TESTDATA}>
@@ -329,7 +366,7 @@ function TestcasesCard({ testcases, notice, pending }: SectionProps & { testcase
       </CardBody>
       <DataTable
         data={testcases}
-        columns={testcaseColumns}
+        columns={testcaseColumns(problemId)}
         rowKey={(t) => t.id}
         empty={<Empty>No testcases yet — submissions will get a Judge Error.</Empty>}
       />

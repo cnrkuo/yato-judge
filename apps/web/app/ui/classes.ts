@@ -208,6 +208,8 @@ export const code = {
   /** Container of Shiki's output; also referenced by the Markdown pipeline. */
   code: 'oj-code',
   numbered: 'oj-code-numbered',
+  /** Long content scrolls inside the block instead of stretching the page. */
+  scroll: 'oj-code-scroll',
   fileLink: 'btn btn-link btn-sm p-0 mt-1',
 };
 
