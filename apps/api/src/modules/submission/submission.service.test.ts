@@ -1,6 +1,13 @@
 import { AccessLevel, LANGUAGES, Language, UserLevel, Verdict } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
-import { ForbiddenError, NotFoundError, UnauthorizedError } from '../../common/errors.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ServiceUnavailableError,
+  TooManyRequestsError,
+  UnauthorizedError,
+} from '../../common/errors.js';
+import { config } from '../../config.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import { Queue } from '../../messaging/message-broker.js';
 import { actor, admin, fake, guest, localEvents, user } from '../../testing/fixtures.js';
@@ -8,7 +15,7 @@ import type { ContestRepository } from '../contest/contest.repository.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import type { ProblemService } from '../problem/problem.service.js';
 import type { SubmissionFilter, SubmissionRepository } from './submission.repository.js';
-import { SubmissionService } from './submission.service.js';
+import { SubmissionService, tooSoonMessage } from './submission.service.js';
 
 const owner = { id: admin.id, username: admin.username, level: admin.level };
 const summary = {
@@ -49,8 +56,20 @@ function service(
 ) {
   const published: [string, unknown][] = [];
   const filters: SubmissionFilter[] = [];
+  // The submission slot, as the users table would keep it (one user here).
+  const slot = { last: undefined as Date | undefined, takes: 0, releases: 0, queueDown: false };
   const submissions = new SubmissionService(
     fake<SubmissionRepository>({
+      takeSubmitSlot: async (_userId: number, at: Date, intervalMs: number) => {
+        slot.takes++;
+        if (slot.last && at.getTime() - slot.last.getTime() < intervalMs) return { taken: false, previous: slot.last };
+        slot.last = at;
+        return { taken: true };
+      },
+      releaseSubmitSlot: async (_userId: number, at: Date) => {
+        slot.releases++;
+        if (slot.last?.getTime() === at.getTime()) slot.last = undefined;
+      },
       findSummary: async () => summary,
       findById: async () => row,
       reserveId: async () => 77,
@@ -72,10 +91,15 @@ function service(
         id === 9 ? { contest: { startAt: contestStart, endAt: contestEnd, languages: [Language.CPP] } } : undefined,
       listProblems: async () => [{ problemId: 3 }, { problemId: 4 }],
     }),
-    fake<MessageBroker>({ publish: async (queue: string, message: unknown) => void published.push([queue, message]) }),
+    fake<MessageBroker>({
+      publish: async (queue: string, message: unknown) => {
+        if (slot.queueDown) throw new ServiceUnavailableError('The message queue is unavailable');
+        published.push([queue, message]);
+      },
+    }),
     localEvents(),
   );
-  return { submissions, published, filters };
+  return { submissions, published, filters, slot };
 }
 const publicCode = { contentAccess: AccessLevel.OPEN, codeviewAccess: AccessLevel.OPEN };
 const privateCode = { contentAccess: AccessLevel.OPEN, codeviewAccess: AccessLevel.HIDDEN };
@@ -109,6 +133,76 @@ describe('SubmissionService.create', () => {
     await expect(
       submissions.create(user, { problemId: 3, language: Language.CPP23, code: 'int main(){}' }),
     ).resolves.toEqual({ id: 77 });
+  });
+});
+
+describe('SubmissionService.create rate limit', () => {
+  const input = { problemId: 3, language: Language.CPP, code: 'int main(){}' };
+
+  it('lets a user submit once a minute, and says how long to wait', async () => {
+    const { submissions, published } = service(publicCode);
+    await expect(submissions.create(user, input)).resolves.toEqual({ id: 77 });
+    const refused = submissions.create(user, input);
+    await expect(refused).rejects.toThrow(TooManyRequestsError);
+    await expect(refused).rejects.toThrow(/You can submit once a minute\. Try again in (59|60) seconds\./);
+    expect(published).toHaveLength(1);
+  });
+
+  it('only counts submissions that would be accepted', async () => {
+    const closed = service(publicCode, false);
+    await expect(closed.submissions.create(user, input)).rejects.toThrow(ForbiddenError);
+    expect(closed.slot.takes).toBe(0);
+    const wrongLanguage = service(publicCode, true, true, [Language.PYTHON3]);
+    await expect(wrongLanguage.submissions.create(user, input)).rejects.toThrow(/does not allow/);
+    expect(wrongLanguage.slot.takes).toBe(0);
+  });
+
+  it('gives the slot back when the submission could not be queued, so a retry need not wait', async () => {
+    const { submissions, published, slot } = service(publicCode);
+    slot.queueDown = true;
+    await expect(submissions.create(user, input)).rejects.toThrow(ServiceUnavailableError);
+    expect(slot.releases).toBe(1);
+    slot.queueDown = false;
+    await expect(submissions.create(user, input)).resolves.toEqual({ id: 77 });
+    expect(published).toHaveLength(1);
+  });
+
+  it('exempts administrators, who test problems', async () => {
+    const { submissions, published, slot } = service(publicCode);
+    await submissions.create(admin, input);
+    await submissions.create(admin, input);
+    expect(published).toHaveLength(2);
+    expect(slot.takes).toBe(0);
+  });
+
+  it('is off with SUBMIT_INTERVAL_SEC=0', async () => {
+    const saved = config.submitIntervalSec;
+    config.submitIntervalSec = 0;
+    try {
+      const { submissions, published } = service(publicCode);
+      await submissions.create(user, input);
+      await submissions.create(user, input);
+      expect(published).toHaveLength(2);
+    } finally {
+      config.submitIntervalSec = saved;
+    }
+  });
+});
+
+describe('tooSoonMessage', () => {
+  const previous = new Date('2026-11-25T12:00:00Z');
+  const later = (ms: number) => new Date(previous.getTime() + ms);
+
+  it('rounds the wait up to whole seconds, never below one', () => {
+    expect(tooSoonMessage(previous, later(15_000), 60)).toBe('You can submit once a minute. Try again in 45 seconds.');
+    expect(tooSoonMessage(previous, later(59_500), 60)).toBe('You can submit once a minute. Try again in 1 second.');
+    expect(tooSoonMessage(previous, later(60_000), 60)).toBe('You can submit once a minute. Try again in 1 second.');
+  });
+
+  it('names other intervals in seconds', () => {
+    expect(tooSoonMessage(previous, later(0), 30)).toBe(
+      'You can submit once every 30 seconds. Try again in 30 seconds.',
+    );
   });
 });
 

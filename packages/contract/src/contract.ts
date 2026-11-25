@@ -10,6 +10,8 @@ const base = oc.errors({
   FORBIDDEN: {},
   NOT_FOUND: {},
   CONFLICT: {},
+  /** Too soon after the previous request of its kind (submissions); the message says when to retry. */
+  TOO_MANY_REQUESTS: {},
   /** The write queue is down; safe to retry. */
   SERVICE_UNAVAILABLE: {},
 });

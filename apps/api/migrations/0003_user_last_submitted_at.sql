@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "last_submitted_at" timestamp with time zone;

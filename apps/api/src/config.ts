@@ -23,6 +23,11 @@ export const config = {
   /** A submission stuck in JUDGING longer than this is handed out again. */
   judgeTimeoutSec: int('JUDGE_TIMEOUT_SEC', 600),
   /**
+   * Seconds a user must wait between two submissions (administrators are
+   * exempt); 0 turns the limit off.
+   */
+  submitIntervalSec: int('SUBMIT_INTERVAL_SEC', 60),
+  /**
    * Registers (or re-keys) a judge machine with this token at boot, so a
    * judge started next to the API (docker compose) needs no manual setup.
    */
