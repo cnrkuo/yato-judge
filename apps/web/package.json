@@ -32,6 +32,7 @@
     "hast-util-from-html": "^2.1.0",
     "hono": "^4.13.18",
     "isbot": "^5.1.36",
+    "monaco-editor": "0.57.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

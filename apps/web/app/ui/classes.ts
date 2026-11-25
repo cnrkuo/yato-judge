@@ -210,6 +210,10 @@ export const code = {
   numbered: 'oj-code-numbered',
   /** Long content scrolls inside the block instead of stretching the page. */
   scroll: 'oj-code-scroll',
+  /** `<CodeInput>`: the code editor takes the textarea's place, in the same box. */
+  editor: 'oj-editor',
+  editorReady: 'oj-editor oj-editor-ready',
+  editorHost: 'oj-editor-host',
   fileLink: 'btn btn-link btn-sm p-0 mt-1',
 };
 

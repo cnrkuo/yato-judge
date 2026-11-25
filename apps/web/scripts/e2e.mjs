@@ -123,7 +123,9 @@ async function createProblem(page) {
 
 async function judge(page, problemId, { language, code }) {
   await page.goto(`${BASE_URL}/problems/${problemId}`);
-  await page.fill('[name=code]', code);
+  // Through the file picker: it fills the code editor once it has loaded
+  // (and the plain textarea before), which typing would not do reliably.
+  await page.setInputFiles('input[type=file]', { name: 'main.txt', mimeType: 'text/plain', buffer: Buffer.from(code) });
   await page.selectOption('[name=language]', language);
   await page.click('button:has-text("Submit")');
   await page.waitForURL(/\/submissions\/\d+/);
@@ -143,6 +145,11 @@ async function main() {
   try {
     await signIn(page);
     const problemId = await createProblem(page);
+
+    // The submit box becomes a code editor (Monaco) once the page has loaded.
+    await page.goto(`${BASE_URL}/problems/${problemId}`);
+    const editor = await page.waitForSelector('.monaco-editor', { timeout: 30_000 }).catch(() => null);
+    check(editor !== null, 'the code editor loads in the submit box');
 
     for (const testCase of CASES) {
       const outcome = await judge(page, problemId, testCase);
