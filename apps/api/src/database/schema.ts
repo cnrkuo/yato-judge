@@ -33,6 +33,11 @@ export const users = pgTable(
     /** Self-introduction in Markdown, shown on the profile. */
     introduction: text(),
     avatarUrl: text(),
+    /**
+     * When the user's latest submission passed the submission rate limit
+     * (`SUBMIT_INTERVAL_SEC`); cleared again if it could not be queued.
+     */
+    lastSubmittedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex('users_email_key').on(t.email), uniqueIndex('users_username_key').on(t.username)],

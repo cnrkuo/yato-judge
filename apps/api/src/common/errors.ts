@@ -4,6 +4,7 @@ export type DomainErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'CONFLICT'
+  | 'TOO_MANY_REQUESTS'
   | 'SERVICE_UNAVAILABLE';
 
 /**
@@ -43,6 +44,12 @@ export class NotFoundError extends DomainError {
 export class ConflictError extends DomainError {
   constructor(message: string) {
     super('CONFLICT', message);
+  }
+}
+/** Too soon after the previous request of its kind; the message says when to retry. */
+export class TooManyRequestsError extends DomainError {
+  constructor(message: string) {
+    super('TOO_MANY_REQUESTS', message);
   }
 }
 /** A dependency (the message queue) is down; the request may be retried. */

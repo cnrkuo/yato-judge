@@ -41,6 +41,7 @@ services:
       RABBITMQ_URL: amqp://yato:${RABBITMQ_PASSWORD}@rabbitmq:5672
       BUNDLED_JUDGE_TOKEN: ${JUDGE_TOKEN:?run docker/prod.sh to create .env.production}
       JUDGE_TIMEOUT_SEC: ${JUDGE_TIMEOUT_SEC:-600}
+      SUBMIT_INTERVAL_SEC: ${SUBMIT_INTERVAL_SEC:-60}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-256}
     volumes: [api_data:/var/lib/yato/data]
     ports: ["${API_BIND:-127.0.0.1}:${API_PORT:-3001}:3001"]

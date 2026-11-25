@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AccessLevel, type Language, languageName, Verdict } from '@yato/contract';
 import { type Actor, isAdmin, requireAdmin, requireUser } from '../../common/actor.js';
-import { ForbiddenError, NotFoundError } from '../../common/errors.js';
+import { ForbiddenError, NotFoundError, TooManyRequestsError } from '../../common/errors.js';
 import { type PageInput, pageOf } from '../../common/pagination.js';
+import { config } from '../../config.js';
 import type { JudgeTaskMessage, WriteCommand } from '../../messaging/commands.js';
 import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { ContestRepository } from '../contest/contest.repository.js';
@@ -18,6 +19,16 @@ import { type SubmissionFilter, SubmissionRepository } from './submission.reposi
 const WATCH_RECHECK_MS = 10_000;
 
 const isPending = (verdict: Verdict) => verdict === Verdict.WAIT || verdict === Verdict.JUDGING;
+
+/**
+ * Why a submission made at `now` is refused, when the previous one was at
+ * `previous` and users may submit once every `intervalSec` seconds.
+ */
+export function tooSoonMessage(previous: Date, now: Date, intervalSec: number): string {
+  const wait = Math.max(1, Math.ceil((previous.getTime() + intervalSec * 1000 - now.getTime()) / 1000));
+  const rate = intervalSec === 60 ? 'once a minute' : `once every ${intervalSec} seconds`;
+  return `You can submit ${rate}. Try again in ${wait} second${wait === 1 ? '' : 's'}.`;
+}
 
 type SummaryRow = NonNullable<Awaited<ReturnType<SubmissionRepository['findSummary']>>>;
 
@@ -48,7 +59,11 @@ export class SubmissionService {
     private readonly events: SubmissionEvents,
   ) {}
 
-  /** Accepts a submission; a judge machine picks it up asynchronously. */
+  /**
+   * Accepts a submission; a judge machine picks it up asynchronously. Users
+   * may submit once every `SUBMIT_INTERVAL_SEC` seconds; administrators,
+   * who test problems, are exempt.
+   */
   async create(actor: Actor, input: { problemId: number; language: Language; code: string }): Promise<{ id: number }> {
     requireUser(actor);
     const { canSubmit, languages } = await this.problemService.access(actor, input.problemId);
@@ -58,17 +73,31 @@ export class SubmissionService {
         `Your contest does not allow ${languageName(input.language)} for this problem; use ${languages.map(languageName).join(', ')}`,
       );
     }
-    // Reserve the id, queue the insert, answer. The row appears as soon as
-    // the write-queue consumer gets to it (normally within milliseconds).
-    const id = await this.submissions.reserveId();
-    await this.broker.publish(Queue.WRITES, {
-      type: 'submission.create',
-      id,
-      userId: actor.id,
-      createdAt: new Date().toISOString(),
-      ...input,
-    } satisfies WriteCommand);
-    return { id };
+    // Only a submission that would be accepted takes the user's slot.
+    const now = new Date();
+    const limited = config.submitIntervalSec > 0 && !isAdmin(actor);
+    if (limited) {
+      const slot = await this.submissions.takeSubmitSlot(actor.id, now, config.submitIntervalSec * 1000);
+      if (!slot.taken) throw new TooManyRequestsError(tooSoonMessage(slot.previous, now, config.submitIntervalSec));
+    }
+    try {
+      // Reserve the id, queue the insert, answer. The row appears as soon as
+      // the write-queue consumer gets to it (normally within milliseconds).
+      const id = await this.submissions.reserveId();
+      await this.broker.publish(Queue.WRITES, {
+        type: 'submission.create',
+        id,
+        userId: actor.id,
+        createdAt: now.toISOString(),
+        ...input,
+      } satisfies WriteCommand);
+      return { id };
+    } catch (error) {
+      // Nothing was queued ("safe to retry"): a retry must not have to wait.
+      // Should that fail too, the original error is still the one to report.
+      if (limited) await this.submissions.releaseSubmitSlot(actor.id, now).catch(() => undefined);
+      throw error;
+    }
   }
 
   async list(actor: Actor, input: PageInput & Omit<SubmissionFilter, 'within'> & { contestId?: number }) {

@@ -35,6 +35,8 @@ SITE_NAME=YATO Judge
 SITE_TIMEZONE=Asia/Taipei
 # MAX_UPLOAD_MB=256
 # JUDGE_TIMEOUT_SEC=600
+# Seconds a user must wait between two submissions (administrators are exempt; 0 = no limit).
+# SUBMIT_INTERVAL_SEC=60
 # Image tag of yato/api, yato/web and yato/judge.
 # YATO_TAG=latest
 # Builds behind a TLS-intercepting proxy: export BUILD_CA_CERT="$(cat proxy-ca.pem)"
