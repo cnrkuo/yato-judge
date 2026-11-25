@@ -358,6 +358,36 @@ blockquote {
   max-height: 36rem;
   overflow-y: auto;
 }
+
+/*
+ * <CodeInput>: Monaco is laid over the textarea, which keeps the box. The
+ * frame copies the look of a .form-control.oj-control, focus ring included.
+ */
+.oj-editor {
+  position: relative;
+}
+.oj-editor-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.oj-editor-ready > textarea {
+  visibility: hidden;
+}
+.oj-editor-ready > .oj-editor-host {
+  overflow: hidden;
+  pointer-events: auto;
+  border: var(--bs-border-width) solid var(--bs-gray-600);
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-body-bg);
+  transition:
+    border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+.oj-editor-ready > .oj-editor-host:focus-within {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
 .oj-code-numbered .line::before {
   content: counter(line);
   counter-increment: line;
