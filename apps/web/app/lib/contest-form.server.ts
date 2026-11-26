@@ -1,4 +1,4 @@
-import { ContestProblemState, ContestStyle, LANGUAGES, RegisterType } from '@yato/contract';
+import { ContestProblemState, ContestStyle, LANGUAGES, RegisterType, SUBMIT_COOLDOWN_MAX_SEC } from '@yato/contract';
 import { SITE_TIMEZONE } from './site.server';
 import { parseLocalInput } from './time';
 
@@ -50,6 +50,19 @@ export function parseContestForm(form: FormData) {
   const languages = LANGUAGES.filter((language) => checked.includes(language));
   if (languages.length === 0) return { ok: false as const, error: 'Allow at least one language' };
 
+  // Empty keeps the site's default; otherwise whole seconds.
+  const cooldown = text('submitCooldownSec').trim();
+  const submitCooldownSec = cooldown === '' ? null : Number(cooldown);
+  if (
+    submitCooldownSec !== null &&
+    !(Number.isInteger(submitCooldownSec) && submitCooldownSec >= 0 && submitCooldownSec <= SUBMIT_COOLDOWN_MAX_SEC)
+  ) {
+    return {
+      ok: false as const,
+      error: `Submission cooldown must be a whole number of seconds from 0 to ${SUBMIT_COOLDOWN_MAX_SEC}, or empty for the site's default`,
+    };
+  }
+
   const registerType = Object.values(RegisterType).find((type) => String(type) === text('registerType'));
   return {
     ok: true as const,
@@ -64,6 +77,7 @@ export function parseContestForm(form: FormData) {
       freezeSec: Math.round(Number(text('freezeMin')) * 60) || 0,
       penaltySec: Math.round(Number(text('penaltyMin')) * 60) || 0,
       languages: languages.length === LANGUAGES.length ? [] : languages,
+      submitCooldownSec,
       problems,
     },
   };

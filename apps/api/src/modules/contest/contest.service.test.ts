@@ -1,6 +1,7 @@
 import { ContestProblemState, ContestStyle, Language, RegisterType, TeamState } from '@yato/contract';
 import { describe, expect, it } from 'vitest';
 import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError } from '../../common/errors.js';
+import { config } from '../../config.js';
 import { admin, fake, guest, minutesFrom, user } from '../../testing/fixtures.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import type { SubmissionRepository } from '../submission/submission.repository.js';
@@ -20,6 +21,7 @@ const contestRow = (overrides: Record<string, unknown> = {}) => ({
   freezeSec: 0,
   penaltySec: 1200,
   languages: [] as string[],
+  submitCooldownSec: null as number | null,
   ...overrides,
 });
 
@@ -91,6 +93,7 @@ describe('ContestService.create', () => {
     freezeSec: 0,
     penaltySec: 0,
     languages: [] as Language[],
+    submitCooldownSec: null as number | null,
     problems: [
       { problemId: 1, tag: 'A', state: ContestProblemState.NORMAL },
       { problemId: 2, tag: 'B', state: ContestProblemState.NORMAL },
@@ -136,6 +139,14 @@ describe('ContestService.update', () => {
   const updates: unknown[][] = [];
   const contests = service(contestRow(), { update: async (...args: unknown[]) => void updates.push(args) }).service;
 
+  it('stores the submission cooldown: seconds, 0 for none, or null for the site default', async () => {
+    for (const submitCooldownSec of [30, 0, null]) {
+      updates.length = 0;
+      await contests.update(admin, 1, { submitCooldownSec });
+      expect(updates[0]?.[1]).toEqual({ submitCooldownSec });
+    }
+  });
+
   it('changes the allowed languages only when given', async () => {
     updates.length = 0;
     await contests.update(admin, 1, { languages: [Language.CPP23, Language.C] });
@@ -154,6 +165,20 @@ describe('ContestService.get and settings', () => {
       languages: [Language.CPP],
     });
     await expect(service(contestRow(), repo).service.get(user, 1)).resolves.toMatchObject({ languages: [] });
+  });
+
+  it("shows participants the cooldown in force; managers' settings keep the contest's own", async () => {
+    const own = contestRow({ submitCooldownSec: 120 });
+    await expect(service(own, repo).service.get(user, 1)).resolves.toMatchObject({ submitCooldownSec: 120 });
+    await expect(service(contestRow({ submitCooldownSec: 0 }), repo).service.get(user, 1)).resolves.toMatchObject({
+      submitCooldownSec: 0,
+    });
+    await expect(service(contestRow(), repo).service.get(user, 1)).resolves.toMatchObject({
+      submitCooldownSec: config.submitIntervalSec,
+    });
+    await expect(service(contestRow(), repo).service.settings(admin, 1)).resolves.toMatchObject({
+      submitCooldownSec: null,
+    });
   });
 
   it('reads the allowed languages back to administrators', async () => {

@@ -10,6 +10,7 @@ import {
   Language,
   RegisterType,
   ScoreMode,
+  SUBMIT_COOLDOWN_MAX_SEC,
   TeamState,
   UserLevel,
   Verdict,
@@ -402,6 +403,11 @@ export const ContestSchema = ContestSummarySchema.merge({
   penaltySec: 'number.integer',
   /** Languages participants may submit in; empty when any language is allowed. */
   languages: LanguageSchema.array(),
+  /**
+   * Seconds participants must wait between two submissions while the
+   * contest runs: its own setting, or else the site's default.
+   */
+  submitCooldownSec: 'number.integer',
   myState: TeamStateSchema,
   canManage: 'boolean',
   /** Whether the viewer may currently see the problem set. */
@@ -415,6 +421,8 @@ export const ContestProblemInputSchema = type({
   tag: trimmed(1, 8),
   state: ContestProblemStateSchema.default(ContestProblemState.NORMAL),
 });
+
+const SubmitCooldownSchema = type(`0 <= number.integer <= ${SUBMIT_COOLDOWN_MAX_SEC}`).or('null');
 
 /** Every editable contest field, without defaults (updates are partial). */
 const ContestFieldsSchema = type({
@@ -433,6 +441,12 @@ const ContestFieldsSchema = type({
    * and do not count on the scoreboard.
    */
   languages: LanguageSchema.array().atMostLength(64),
+  /**
+   * Seconds a participant must wait between two submissions that count for
+   * the contest while it runs (0 for none); null for the site's default
+   * (`SUBMIT_INTERVAL_SEC`). Administrators are never held back.
+   */
+  submitCooldownSec: SubmitCooldownSchema,
   problems: ContestProblemInputSchema.array().atMostLength(52),
 });
 
@@ -446,6 +460,7 @@ export const ContestCreateInputSchema = ContestFieldsSchema.merge({
   languages: LanguageSchema.array()
     .atMostLength(64)
     .default(() => []),
+  submitCooldownSec: SubmitCooldownSchema.default(null),
   problems: ContestProblemInputSchema.array()
     .atMostLength(52)
     .default(() => []),

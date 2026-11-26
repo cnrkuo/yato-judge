@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatElapsed,
   formatOffset,
+  formatSeconds,
   isoToLocalInput,
   parseLocalInput,
 } from './time';
@@ -82,6 +83,16 @@ describe('default windows', () => {
       startAt: '2026-11-14T04:30:00.000Z', // 10:00 local
       endAt: '2027-11-14T04:30:00.000Z',
     });
+  });
+});
+
+describe('formatSeconds', () => {
+  it('names a wait in its largest whole unit', () => {
+    expect(formatSeconds(0)).toBe('0 s');
+    expect(formatSeconds(45)).toBe('45 s');
+    expect(formatSeconds(90)).toBe('90 s');
+    expect(formatSeconds(120)).toBe('2 min');
+    expect(formatSeconds(3600)).toBe('1 h');
   });
 });
 

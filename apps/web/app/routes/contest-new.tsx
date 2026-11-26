@@ -41,6 +41,7 @@ export default function ContestNew({ loaderData, actionData }: Route.ComponentPr
           freezeSec: 3600,
           penaltySec: 1200,
           languages: [],
+          submitCooldownSec: null,
           problems: '',
         }}
       />

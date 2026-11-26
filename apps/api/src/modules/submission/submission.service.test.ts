@@ -15,7 +15,7 @@ import type { ContestRepository } from '../contest/contest.repository.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import type { ProblemService } from '../problem/problem.service.js';
 import type { SubmissionFilter, SubmissionRepository } from './submission.repository.js';
-import { SubmissionService, tooSoonMessage } from './submission.service.js';
+import { SubmissionService, submitIntervalSec, tooSoonMessage } from './submission.service.js';
 
 const owner = { id: admin.id, username: admin.username, level: admin.level };
 const summary = {
@@ -46,13 +46,15 @@ const contestEnd = new Date('2026-12-01T05:00:00Z');
 /**
  * `readable`: whether the viewer may read the problem, as ProblemService
  * decides it (the owner's rules, or a contest the viewer takes part in);
- * `languages`: what it allows them to submit in.
+ * `languages`: what it allows them to submit in; `cooldowns`: those of
+ * the running contests a submission would count for.
  */
 function service(
   problem: { contentAccess: number; codeviewAccess: number },
   canSubmit = true,
   readable = problem.contentAccess === AccessLevel.OPEN,
   languages: readonly Language[] = LANGUAGES,
+  cooldowns: readonly (number | null)[] = [],
 ) {
   const published: [string, unknown][] = [];
   const filters: SubmissionFilter[] = [];
@@ -62,13 +64,16 @@ function service(
     fake<SubmissionRepository>({
       takeSubmitSlot: async (_userId: number, at: Date, intervalMs: number) => {
         slot.takes++;
-        if (slot.last && at.getTime() - slot.last.getTime() < intervalMs) return { taken: false, previous: slot.last };
+        const previous = slot.last;
+        if (intervalMs > 0 && previous && at.getTime() - previous.getTime() < intervalMs) {
+          return { taken: false, previous };
+        }
         slot.last = at;
-        return { taken: true };
+        return { taken: true, previous: previous ?? null };
       },
-      releaseSubmitSlot: async (_userId: number, at: Date) => {
+      releaseSubmitSlot: async (_userId: number, at: Date, previous: Date | null) => {
         slot.releases++;
-        if (slot.last?.getTime() === at.getTime()) slot.last = undefined;
+        if (slot.last?.getTime() === at.getTime()) slot.last = previous ?? undefined;
       },
       findSummary: async () => summary,
       findById: async () => row,
@@ -83,7 +88,7 @@ function service(
     fake<ProblemService>({
       access: async () => {
         if (!readable) throw new ForbiddenError('You may not view this problem');
-        return { canSubmit, languages };
+        return { canSubmit, languages, cooldowns };
       },
     }),
     fake<ContestRepository>({
@@ -175,6 +180,35 @@ describe('SubmissionService.create rate limit', () => {
     expect(slot.takes).toBe(0);
   });
 
+  it("follows the cooldown of the running contest the submission counts for, not the site's", async () => {
+    const none = service(publicCode, true, true, LANGUAGES, [0]);
+    await none.submissions.create(user, input);
+    await none.submissions.create(user, input);
+    expect(none.published).toHaveLength(2);
+    // Even without a wait the slot is taken: the next submission elsewhere is timed from it.
+    expect(none.slot.last).toBeDefined();
+
+    const long = service(publicCode, true, true, LANGUAGES, [120]);
+    await long.submissions.create(user, input);
+    await expect(long.submissions.create(user, input)).rejects.toThrow(
+      /^You can submit once every 120 seconds\. Try again in (119|120) seconds\.$/,
+    );
+
+    const inherits = service(publicCode, true, true, LANGUAGES, [null]);
+    await inherits.submissions.create(user, input);
+    await expect(inherits.submissions.create(user, input)).rejects.toThrow(/once a minute/);
+  });
+
+  it('restores the previous slot exactly when a submission cannot be queued', async () => {
+    const { submissions, slot } = service(publicCode, true, true, LANGUAGES, [0]);
+    const previous = new Date(Date.now() - 10_000);
+    slot.last = previous;
+    slot.queueDown = true;
+    await expect(submissions.create(user, input)).rejects.toThrow(ServiceUnavailableError);
+    // Not cleared: a submission elsewhere must still wait from 10 seconds ago.
+    expect(slot.last).toBe(previous);
+  });
+
   it('is off with SUBMIT_INTERVAL_SEC=0', async () => {
     const saved = config.submitIntervalSec;
     config.submitIntervalSec = 0;
@@ -186,6 +220,20 @@ describe('SubmissionService.create rate limit', () => {
     } finally {
       config.submitIntervalSec = saved;
     }
+  });
+});
+
+describe('submitIntervalSec', () => {
+  it("uses the site's default outside contests and for contests that keep it", () => {
+    expect(submitIntervalSec([], 60)).toBe(60);
+    expect(submitIntervalSec([null], 60)).toBe(60);
+  });
+
+  it('lets a contest set its own, shorter or longer; the longest of several running ones holds', () => {
+    expect(submitIntervalSec([0], 60)).toBe(0);
+    expect(submitIntervalSec([300], 60)).toBe(300);
+    expect(submitIntervalSec([300, 0], 60)).toBe(300);
+    expect(submitIntervalSec([30, null], 60)).toBe(60);
   });
 });
 

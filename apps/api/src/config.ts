@@ -24,7 +24,8 @@ export const config = {
   judgeTimeoutSec: int('JUDGE_TIMEOUT_SEC', 600),
   /**
    * Seconds a user must wait between two submissions (administrators are
-   * exempt); 0 turns the limit off.
+   * exempt); 0 turns the limit off. A running contest may set its own for
+   * the submissions that count for it.
    */
   submitIntervalSec: int('SUBMIT_INTERVAL_SEC', 60),
   /**

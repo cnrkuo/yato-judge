@@ -90,6 +90,13 @@ export function formatElapsed(totalSeconds: number, withSeconds = false): string
   return withSeconds ? `${hours}:${minutes}:${rest}` : `${hours}:${minutes}`;
 }
 
+/** A short wait in its largest whole unit: "45 s", "90 s", "2 min", "1 h". */
+export function formatSeconds(seconds: number): string {
+  if (seconds > 0 && seconds % 3600 === 0) return `${seconds / 3600} h`;
+  if (seconds > 0 && seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${seconds} s`;
+}
+
 export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.round(totalSeconds));
   const days = Math.floor(seconds / 86400);

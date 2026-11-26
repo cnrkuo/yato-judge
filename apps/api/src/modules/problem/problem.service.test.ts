@@ -14,6 +14,7 @@ const running: ContestEntry = {
   endAt: new Date(Date.now() + 3_600_000),
   problemState: ContestProblemState.NORMAL,
   languages: [],
+  submitCooldownSec: null,
 };
 
 function service(found: ReturnType<typeof problem> | undefined, entries?: ContestEntry[]) {
@@ -80,6 +81,12 @@ describe('ProblemService.access', () => {
       canSubmit: true,
       languages: [Language.CPP, Language.CPP23],
     });
+  });
+
+  it('passes on the submission cooldowns of the running contests', async () => {
+    await expect(
+      service(problem(AccessLevel.OPEN, true), [{ ...running, submitCooldownSec: 15 }]).access(user, 7),
+    ).resolves.toMatchObject({ cooldowns: [15] });
   });
 
   it('closes submissions when the running contests have no language in common', async () => {

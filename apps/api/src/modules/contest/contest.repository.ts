@@ -134,7 +134,12 @@ export class ContestRepository {
   async entriesFor(userId: number, problemId: number, now: Date): Promise<ContestEntry[]> {
     if (userId === GUEST.id) return [];
     return this.db
-      .select({ endAt: contests.endAt, problemState: contestProblems.state, languages: contests.languages })
+      .select({
+        endAt: contests.endAt,
+        problemState: contestProblems.state,
+        languages: contests.languages,
+        submitCooldownSec: contests.submitCooldownSec,
+      })
       .from(contestProblems)
       .innerJoin(contests, eq(contests.id, contestProblems.contestId))
       .innerJoin(contestUsers, and(eq(contestUsers.contestId, contests.id), eq(contestUsers.userId, userId)))

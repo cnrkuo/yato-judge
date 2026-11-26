@@ -14,6 +14,7 @@ import { hasDuplicates } from '../../common/collections.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../common/errors.js';
 import { type PageInput, pageOf } from '../../common/pagination.js';
 import { resolveWindow, type TimeWindow } from '../../common/time-window.js';
+import { config } from '../../config.js';
 import { ProblemRepository } from '../problem/problem.repository.js';
 import { SubmissionRepository } from '../submission/submission.repository.js';
 import { UserRepository } from '../user/user.repository.js';
@@ -32,6 +33,8 @@ export interface ContestInput {
   penaltySec: number;
   /** Languages participants may submit in; empty for any. */
   languages: Language[];
+  /** Seconds between a participant's submissions while it runs; null for the site's default. */
+  submitCooldownSec: number | null;
   problems: ContestProblemInput[];
 }
 
@@ -108,6 +111,7 @@ export class ContestService {
       freezeSec: contest.freezeSec,
       penaltySec: contest.penaltySec,
       languages: contest.languages as Language[],
+      submitCooldownSec: contest.submitCooldownSec ?? config.submitIntervalSec,
       myState,
       canManage,
       canEnter,
@@ -135,6 +139,7 @@ export class ContestService {
       freezeSec: contest.freezeSec,
       penaltySec: contest.penaltySec,
       languages: contest.languages as Language[],
+      submitCooldownSec: contest.submitCooldownSec,
       problems: problems.map(({ problemId, tag, state }) => ({ problemId, tag, state: state as ContestProblemState })),
     };
   }
