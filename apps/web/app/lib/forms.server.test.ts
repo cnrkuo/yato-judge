@@ -60,6 +60,16 @@ describe('parseContestForm', () => {
     expect(parseContestForm(form({ ...times, ...allLanguages }))).toMatchObject({ ok: true, value: { languages: [] } });
   });
 
+  it('reads the submission cooldown: empty keeps the site default, else whole seconds up to an hour', () => {
+    const cooldown = (value: string) => parseContestForm(form({ ...times, ...allLanguages, submitCooldownSec: value }));
+    expect(cooldown('')).toMatchObject({ ok: true, value: { submitCooldownSec: null } });
+    expect(cooldown(' 0 ')).toMatchObject({ ok: true, value: { submitCooldownSec: 0 } });
+    expect(cooldown('90')).toMatchObject({ ok: true, value: { submitCooldownSec: 90 } });
+    expect(cooldown('3600')).toMatchObject({ ok: true, value: { submitCooldownSec: 3600 } });
+    expect(parseContestForm(form({ ...times, ...allLanguages }))).toMatchObject({ value: { submitCooldownSec: null } });
+    for (const bad of ['-1', '1.5', '3601', 'soon']) expect(cooldown(bad)).toMatchObject({ ok: false });
+  });
+
   it('refuses a contest that allows no language at all', () => {
     expect(parseContestForm(form({ ...times }))).toEqual({ ok: false, error: 'Allow at least one language' });
     expect(parseContestForm(form({ ...times, languages: 'cobol' }))).toMatchObject({ ok: false });

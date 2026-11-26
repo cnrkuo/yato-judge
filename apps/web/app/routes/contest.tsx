@@ -5,7 +5,7 @@ import { api, load, submit } from '~/lib/api.server';
 import { renderMarkdown } from '~/lib/markdown.server';
 import { idParam } from '~/lib/params';
 import { useRefreshAt } from '~/lib/revalidate';
-import { formatDuration } from '~/lib/time';
+import { formatDuration, formatSeconds } from '~/lib/time';
 import {
   Badge,
   Button,
@@ -141,6 +141,11 @@ export default function Contest({ loaderData: contest, actionData }: Route.Compo
             </span>
             <span>{contest.style === ContestStyle.IOI ? 'IOI rules' : 'ICPC rules'}</span>
             {contest.languages.length > 0 && <span>{contest.languages.map(languageName).join(', ')} only</span>}
+            <span>
+              {contest.submitCooldownSec > 0
+                ? `${formatSeconds(contest.submitCooldownSec)} between submissions`
+                : 'No wait between submissions'}
+            </span>
             <span>
               {contest.participants} participant{contest.participants === 1 ? '' : 's'}
             </span>

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Verdict } from '@yato/contract';
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, lte, notInArray, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, notInArray, or, type SQL, sql } from 'drizzle-orm';
 import { type Actor, GUEST } from '../../common/actor.js';
 import { offsetOf, type PageInput } from '../../common/pagination.js';
 import { type Database, DB } from '../../database/database.module.js';
@@ -67,35 +67,40 @@ export class SubmissionRepository {
 
   /**
    * Takes the user's submission slot at `at`, unless they already took one
-   * within the last `intervalMs`. One conditional update decides, so two
-   * requests at once cannot both get through, whichever API instance
-   * serves them. Returns when the slot was last taken if it is refused.
+   * within the last `intervalMs` (0: always). One statement decides, with
+   * the user's row locked, so two requests at once cannot both get through,
+   * whichever API instance serves them. Returns when the slot was taken
+   * before: to restore it, or to say how long to wait.
    */
   async takeSubmitSlot(
     userId: number,
     at: Date,
     intervalMs: number,
-  ): Promise<{ taken: true } | { taken: false; previous: Date }> {
+  ): Promise<{ taken: true; previous: Date | null } | { taken: false; previous: Date }> {
     const since = new Date(at.getTime() - intervalMs);
-    const [taken] = await this.db
-      .update(users)
-      .set({ lastSubmittedAt: at })
-      .where(and(eq(users.id, userId), or(isNull(users.lastSubmittedAt), lte(users.lastSubmittedAt, since))))
-      .returning({ id: users.id });
-    if (taken) return { taken: true };
+    const result = await this.db.execute<{ previous: Date | string | null }>(sql`
+      with old as (
+        select ${users.lastSubmittedAt} as previous from ${users} where ${users.id} = ${userId} for update
+      )
+      update ${users} set last_submitted_at = ${at} from old
+      where ${users.id} = ${userId} and (old.previous is null or old.previous <= ${since} or ${intervalMs <= 0})
+      returning old.previous as previous`);
+    const toDate = (value: Date | string | null | undefined) => (value == null ? null : new Date(value));
+    const [taken] = result.rows;
+    if (taken) return { taken: true, previous: toDate(taken.previous) };
     const [row] = await this.db.select({ previous: users.lastSubmittedAt }).from(users).where(eq(users.id, userId));
     // No row or no time: nothing to wait for (an account deleted meanwhile).
-    return row?.previous ? { taken: false, previous: row.previous } : { taken: true };
+    return row?.previous ? { taken: false, previous: row.previous } : { taken: true, previous: null };
   }
 
   /**
-   * Gives back a slot taken at `at` whose submission could not be queued.
-   * Clearing it is the same as restoring it: the slot before was free.
+   * Gives back a slot taken at `at` whose submission could not be queued,
+   * restoring the time it was taken before; a newer one is left alone.
    */
-  async releaseSubmitSlot(userId: number, at: Date): Promise<void> {
+  async releaseSubmitSlot(userId: number, at: Date, previous: Date | null): Promise<void> {
     await this.db
       .update(users)
-      .set({ lastSubmittedAt: null })
+      .set({ lastSubmittedAt: previous })
       .where(and(eq(users.id, userId), eq(users.lastSubmittedAt, at)));
   }
 

@@ -1,4 +1,11 @@
-import { ContestStyle, LANGUAGE_LABEL, LANGUAGES, type Language, RegisterType } from '@yato/contract';
+import {
+  ContestStyle,
+  LANGUAGE_LABEL,
+  LANGUAGES,
+  type Language,
+  RegisterType,
+  SUBMIT_COOLDOWN_MAX_SEC,
+} from '@yato/contract';
 import { Form, useNavigation } from 'react-router';
 import { isoToLocalInput } from '~/lib/time';
 import { Button, Card, CheckField, CheckGroup, css, Field, Grid, Notice, Stack, useRoot } from '~/ui';
@@ -15,6 +22,8 @@ export interface ContestFormValues {
   penaltySec: number;
   /** Allowed languages; empty for any, which shows every box checked. */
   languages: Language[];
+  /** Seconds between a participant's submissions; null for the site's default. */
+  submitCooldownSec: number | null;
   /** Already formatted, one problem per line. */
   problems: string;
 }
@@ -95,6 +104,18 @@ export function ContestForm({
               label="Scoreboard freeze (minutes before the end)"
               hint="0 disables freezing. A frozen board stays frozen after the contest; set this to 0 to publish the final standings.">
               <input type="number" name="freezeMin" min={0} defaultValue={Math.round(values.freezeSec / 60)} />
+            </Field>
+            <Field
+              label="Submission cooldown (seconds)"
+              hint="How long a participant must wait between two submissions while the contest runs. 0 for no wait; empty for the site's default. Administrators never wait.">
+              <input
+                type="number"
+                name="submitCooldownSec"
+                min={0}
+                max={SUBMIT_COOLDOWN_MAX_SEC}
+                placeholder="Site default"
+                defaultValue={values.submitCooldownSec ?? ''}
+              />
             </Field>
           </Grid>
 

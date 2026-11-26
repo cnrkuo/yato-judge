@@ -1,0 +1,1 @@
+ALTER TABLE "contests" ADD COLUMN "submit_cooldown_sec" integer;

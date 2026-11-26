@@ -187,6 +187,8 @@ export const contests = pgTable('contests', {
   penaltySec: integer().notNull().default(1200),
   /** Language ids participants may submit in; empty when any language is allowed. */
   languages: varchar({ length: 16 }).array().notNull().default([]),
+  /** Seconds between a participant's submissions while it runs; null for the site's default. */
+  submitCooldownSec: integer(),
   createdAt: createdAt(),
 });
 

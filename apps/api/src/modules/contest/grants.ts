@@ -7,6 +7,8 @@ export interface ContestEntry {
   problemState: number;
   /** Language ids the contest allows; empty when it allows any. */
   languages: readonly string[];
+  /** Seconds between a participant's submissions; null for the site's default. */
+  submitCooldownSec: number | null;
 }
 
 export interface ContestGrant {
@@ -14,9 +16,14 @@ export interface ContestGrant {
   submit: boolean;
   /** Languages a submission to the problem may use. */
   languages: readonly Language[];
+  /**
+   * The submission cooldown of each running contest the submission counts
+   * for (null where it keeps the site's default); empty when there is none.
+   */
+  cooldowns: readonly (number | null)[];
 }
 
-export const NO_GRANT: ContestGrant = { read: false, submit: false, languages: LANGUAGES };
+export const NO_GRANT: ContestGrant = { read: false, submit: false, languages: LANGUAGES, cooldowns: [] };
 
 /**
  * What the user's running or finished contests allow on a problem that may
@@ -27,8 +34,8 @@ export const NO_GRANT: ContestGrant = { read: false, submit: false, languages: L
  *
  * Languages are the other way round. A submission counts for every running
  * contest that lists the problem, whichever page it came from, so it must
- * use a language each of them allows. Contests that have ended no longer
- * restrict anything.
+ * use a language each of them allows, and wait out each one's submission
+ * cooldown. Contests that have ended no longer restrict anything.
  */
 export function contestGrant(entries: readonly ContestEntry[], now: Date): ContestGrant {
   const running = entries.filter((entry) => now < entry.endAt);
@@ -38,5 +45,6 @@ export function contestGrant(entries: readonly ContestEntry[], now: Date): Conte
     languages: LANGUAGES.filter((language) =>
       running.every((entry) => entry.languages.length === 0 || entry.languages.includes(language)),
     ),
+    cooldowns: running.map((entry) => entry.submitCooldownSec),
   };
 }

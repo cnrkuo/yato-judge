@@ -21,6 +21,8 @@ export interface ProblemAccess extends ProblemWithOwner {
   canSubmit: boolean;
   /** Languages the actor may submit in (see `contestGrant`). */
   languages: readonly Language[];
+  /** Cooldowns of the running contests a submission would count for (see `contestGrant`). */
+  cooldowns: readonly (number | null)[];
 }
 
 @Injectable()
@@ -54,7 +56,7 @@ export class ProblemService {
     const { languages } = grant;
     const canSubmit =
       isUser(actor) && (canEdit || (direct && problem.submitOpen) || grant.submit) && languages.length > 0;
-    return { problem, owner, canEdit, canSubmit, languages };
+    return { problem, owner, canEdit, canSubmit, languages, cooldowns: grant.cooldowns };
   }
 
   /** Loads a problem the actor may edit (`mayEdit`), or throws. */

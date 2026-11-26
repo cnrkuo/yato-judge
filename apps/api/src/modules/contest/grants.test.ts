@@ -10,6 +10,7 @@ const entry = (endAt: Date, overrides: Partial<ContestEntry> = {}): ContestEntry
   endAt,
   problemState: ContestProblemState.NORMAL,
   languages: [],
+  submitCooldownSec: null,
   ...overrides,
 });
 
@@ -20,7 +21,12 @@ describe('contestGrant', () => {
   });
 
   it('lets participants read and submit while the contest runs', () => {
-    expect(contestGrant([entry(running)], now)).toEqual({ read: true, submit: true, languages: LANGUAGES });
+    expect(contestGrant([entry(running)], now)).toEqual({
+      read: true,
+      submit: true,
+      languages: LANGUAGES,
+      cooldowns: [null],
+    });
   });
 
   it('keeps the statement readable but closes submissions once the contest ended', () => {
@@ -65,5 +71,16 @@ describe('contestGrant languages', () => {
     expect(contestGrant(entries, now).languages).toEqual([Language.CPP]);
     const disjoint = [entry(running, { languages: [Language.C] }), entry(running, { languages: [Language.PYTHON3] })];
     expect(contestGrant(disjoint, now).languages).toEqual([]);
+  });
+});
+
+describe('contestGrant cooldowns', () => {
+  it('reports the submission cooldown of each running contest, not of finished ones', () => {
+    const entries = [
+      entry(running, { submitCooldownSec: 30 }),
+      entry(running, { submitCooldownSec: null }),
+      entry(ended, { submitCooldownSec: 300 }),
+    ];
+    expect(contestGrant(entries, now).cooldowns).toEqual([30, null]);
   });
 });
