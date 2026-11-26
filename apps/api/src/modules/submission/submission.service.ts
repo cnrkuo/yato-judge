@@ -105,7 +105,9 @@ export class SubmissionService {
     } catch (error) {
       // Nothing was queued ("safe to retry"): a retry must not have to wait.
       // Should that fail too, the original error is still the one to report.
-      if (slot?.taken) await this.submissions.releaseSubmitSlot(actor.id, now, slot.previous).catch(() => undefined);
+      if (slot?.taken) {
+        await this.submissions.releaseSubmitSlot(actor.id, slot.slot, slot.previous).catch(() => undefined);
+      }
       throw error;
     }
   }

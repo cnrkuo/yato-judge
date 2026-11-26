@@ -69,39 +69,45 @@ export class SubmissionRepository {
    * Takes the user's submission slot at `at`, unless they already took one
    * within the last `intervalMs` (0: always). One statement decides, with
    * the user's row locked, so two requests at once cannot both get through,
-   * whichever API instance serves them. Returns when the slot was taken
-   * before: to restore it, or to say how long to wait.
+   * whichever API instance serves them.
+   *
+   * The time stored is at least 1 ms after the one before, so every slot
+   * taken is a different value, even for requests in the same millisecond;
+   * it is returned as `slot`, which identifies this reservation for
+   * `releaseSubmitSlot`. `previous` is the time it replaced: to restore it,
+   * or, when refused, to say how long to wait.
    */
   async takeSubmitSlot(
     userId: number,
     at: Date,
     intervalMs: number,
-  ): Promise<{ taken: true; previous: Date | null } | { taken: false; previous: Date }> {
+  ): Promise<{ taken: true; slot: Date; previous: Date | null } | { taken: false; previous: Date }> {
     const since = new Date(at.getTime() - intervalMs);
-    const result = await this.db.execute<{ previous: Date | string | null }>(sql`
+    const result = await this.db.execute<{ previous: Date | string | null; slot: Date | string }>(sql`
       with old as (
         select ${users.lastSubmittedAt} as previous from ${users} where ${users.id} = ${userId} for update
       )
-      update ${users} set last_submitted_at = ${at} from old
+      update ${users} set last_submitted_at = greatest(${at}, old.previous + interval '1 millisecond') from old
       where ${users.id} = ${userId} and (old.previous is null or old.previous <= ${since} or ${intervalMs <= 0})
-      returning old.previous as previous`);
+      returning old.previous as previous, ${users.lastSubmittedAt} as slot`);
     const toDate = (value: Date | string | null | undefined) => (value == null ? null : new Date(value));
     const [taken] = result.rows;
-    if (taken) return { taken: true, previous: toDate(taken.previous) };
+    if (taken) return { taken: true, slot: new Date(taken.slot), previous: toDate(taken.previous) };
     const [row] = await this.db.select({ previous: users.lastSubmittedAt }).from(users).where(eq(users.id, userId));
     // No row or no time: nothing to wait for (an account deleted meanwhile).
-    return row?.previous ? { taken: false, previous: row.previous } : { taken: true, previous: null };
+    return row?.previous ? { taken: false, previous: row.previous } : { taken: true, slot: at, previous: null };
   }
 
   /**
-   * Gives back a slot taken at `at` whose submission could not be queued,
-   * restoring the time it was taken before; a newer one is left alone.
+   * Gives back the reservation `slot` (as `takeSubmitSlot` returned it) of a
+   * submission that could not be queued, restoring the time before it. A
+   * later reservation has a later time, and is never overwritten.
    */
-  async releaseSubmitSlot(userId: number, at: Date, previous: Date | null): Promise<void> {
+  async releaseSubmitSlot(userId: number, slot: Date, previous: Date | null): Promise<void> {
     await this.db
       .update(users)
       .set({ lastSubmittedAt: previous })
-      .where(and(eq(users.id, userId), eq(users.lastSubmittedAt, at)));
+      .where(and(eq(users.id, userId), eq(users.lastSubmittedAt, slot)));
   }
 
   /** Inserts a submission under a reserved id. Safe to repeat (redelivery). */
