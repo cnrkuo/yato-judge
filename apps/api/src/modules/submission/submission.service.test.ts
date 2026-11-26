@@ -1,5 +1,5 @@
 import { AccessLevel, LANGUAGES, Language, UserLevel, Verdict } from '@yato/contract';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ForbiddenError,
   NotFoundError,
@@ -59,7 +59,14 @@ function service(
   const published: [string, unknown][] = [];
   const filters: SubmissionFilter[] = [];
   // The submission slot, as the users table would keep it (one user here).
-  const slot = { last: undefined as Date | undefined, takes: 0, releases: 0, queueDown: false };
+  const slot = {
+    last: undefined as Date | undefined,
+    takes: 0,
+    releases: 0,
+    queueDown: false,
+    /** Waits the next publish should go through first; one that throws fails it. */
+    publishWaits: [] as (() => Promise<void>)[],
+  };
   const submissions = new SubmissionService(
     fake<SubmissionRepository>({
       takeSubmitSlot: async (_userId: number, at: Date, intervalMs: number) => {
@@ -68,12 +75,13 @@ function service(
         if (intervalMs > 0 && previous && at.getTime() - previous.getTime() < intervalMs) {
           return { taken: false, previous };
         }
-        slot.last = at;
-        return { taken: true, previous: previous ?? null };
+        // As the database does: at least 1 ms after the slot before.
+        slot.last = new Date(Math.max(at.getTime(), (previous?.getTime() ?? Number.NEGATIVE_INFINITY) + 1));
+        return { taken: true, slot: slot.last, previous: previous ?? null };
       },
-      releaseSubmitSlot: async (_userId: number, at: Date, previous: Date | null) => {
+      releaseSubmitSlot: async (_userId: number, taken: Date, previous: Date | null) => {
         slot.releases++;
-        if (slot.last?.getTime() === at.getTime()) slot.last = previous ?? undefined;
+        if (slot.last?.getTime() === taken.getTime()) slot.last = previous ?? undefined;
       },
       findSummary: async () => summary,
       findById: async () => row,
@@ -98,6 +106,7 @@ function service(
     }),
     fake<MessageBroker>({
       publish: async (queue: string, message: unknown) => {
+        await slot.publishWaits.shift()?.();
         if (slot.queueDown) throw new ServiceUnavailableError('The message queue is unavailable');
         published.push([queue, message]);
       },
@@ -207,6 +216,32 @@ describe('SubmissionService.create rate limit', () => {
     await expect(submissions.create(user, input)).rejects.toThrow(ServiceUnavailableError);
     // Not cleared: a submission elsewhere must still wait from 10 seconds ago.
     expect(slot.last).toBe(previous);
+  });
+
+  it("never gives back another request's slot, even one taken in the same millisecond", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-26T03:00:00.000Z'));
+      const { submissions, slot } = service(publicCode, true, true, LANGUAGES, [0]);
+      const previous = new Date('2026-11-26T02:59:00.000Z');
+      slot.last = previous;
+      // A takes the slot, then waits on the queue, which fails it later.
+      let failA: (error: Error) => void = () => undefined;
+      slot.publishWaits.push(() => new Promise<void>((_, reject) => (failA = reject)));
+      const a = submissions.create(user, input);
+      // Event-loop turns only: vi.waitFor would move the fake clock on.
+      while (slot.takes < 1) await new Promise((resolve) => setImmediate(resolve));
+      // B, in the same millisecond, is queued.
+      await expect(submissions.create(user, input)).resolves.toEqual({ id: 77 });
+      const bSlot = slot.last;
+      failA(new ServiceUnavailableError('The message queue is unavailable'));
+      await expect(a).rejects.toThrow(ServiceUnavailableError);
+      // A's give-back does not touch B's slot: the next wait still counts from B.
+      expect(slot.last).toBe(bSlot);
+      expect(bSlot?.getTime()).toBe(new Date('2026-11-26T03:00:00.001Z').getTime());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is off with SUBMIT_INTERVAL_SEC=0', async () => {
