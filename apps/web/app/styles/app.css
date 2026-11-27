@@ -281,8 +281,14 @@ blockquote {
   justify-content: center;
   color: var(--bs-primary);
 }
-.oj-tooltip {
+/* Base UI's positioners place the popups; these keep Bootstrap's stacking order. */
+.oj-pop-layer {
+  z-index: 1000;
+}
+.oj-tooltip-layer {
   z-index: 1080;
+}
+.oj-tooltip {
   max-width: 18rem;
   padding: 0.25rem 0.5rem;
   border-radius: var(--bs-border-radius);
@@ -307,7 +313,7 @@ blockquote {
 .oj-tabs .nav-link {
   color: var(--bs-secondary-color);
 }
-.oj-tabs .nav-link[data-state="active"] {
+.oj-tabs .nav-link[data-active] {
   color: var(--bs-nav-tabs-link-active-color);
   background-color: var(--bs-card-bg, var(--bs-body-bg));
   border-color: var(--bs-nav-tabs-link-active-border-color);

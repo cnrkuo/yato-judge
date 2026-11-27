@@ -1,5 +1,5 @@
 /**
- * Interactive overlays, built on Radix UI. Radix handles focus, keyboard and
+ * Interactive overlays, built on Base UI. Base UI handles focus, keyboard and
  * screen-reader behaviour; these wrappers give them Bootstrap's look (its
  * dropdown, modal and nav-tabs classes — Bootstrap's own JavaScript is not
  * loaded) and trim the API down to what the app uses.
@@ -7,23 +7,42 @@
  * Rule of thumb: controls inside a <form> that must work without JavaScript
  * stay native; these are for toolbars and one-click actions.
  */
-import { AlertDialog, DropdownMenu, Tabs as RadixTabs, Select, Tooltip } from 'radix-ui';
-import type { ReactNode } from 'react';
+import { AlertDialog } from '@base-ui/react/alert-dialog';
+import { Menu as BaseMenu } from '@base-ui/react/menu';
+import { Select } from '@base-ui/react/select';
+import { Tabs as BaseTabs } from '@base-ui/react/tabs';
+import { Tooltip } from '@base-ui/react/tooltip';
+import { type ReactElement, type ReactNode, useId, useState } from 'react';
 import { overlay as css, css as kit } from './classes';
 
 // ---------------------------------------------------------------- tooltip
 
-export const TooltipProvider = Tooltip.Provider;
-
-/** Explains a terse label (verdict codes, icons) on hover or focus. */
-export function Tip({ label, children }: { label: ReactNode; children: ReactNode }) {
+/** Shares the hover delay between tooltips: once one is open, the next opens at once. */
+export function TooltipProvider({ delay, children }: { delay: number; children: ReactNode }) {
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+    <Tooltip.Provider delay={delay} timeout={300}>
+      {children}
+    </Tooltip.Provider>
+  );
+}
+
+/**
+ * Explains a terse label (verdict codes, icons) on hover or focus.
+ * `children` is the one element it explains. Screen readers hear the
+ * explanation as that element's description while it shows.
+ */
+export function Tip({ label, children }: { label: ReactNode; children: ReactElement }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <Tooltip.Root open={open} onOpenChange={setOpen}>
+      <Tooltip.Trigger render={children} aria-describedby={open ? id : undefined} />
       <Tooltip.Portal>
-        <Tooltip.Content className={css.tooltip} sideOffset={6}>
-          {label}
-        </Tooltip.Content>
+        <Tooltip.Positioner className={css.tooltipLayer} sideOffset={6}>
+          <Tooltip.Popup id={id} role="tooltip" className={css.tooltip}>
+            {label}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
       </Tooltip.Portal>
     </Tooltip.Root>
   );
@@ -41,21 +60,24 @@ export function Menu({
   align?: 'start' | 'end';
 }) {
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger className={kit.button({ variant: 'secondary', size: 'sm' })}>
+    <BaseMenu.Root>
+      <BaseMenu.Trigger className={kit.button({ variant: 'secondary', size: 'sm' })}>
         {label} <span aria-hidden>▾</span>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content className={css.menu} align={align} sideOffset={6}>
-          {children}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+      </BaseMenu.Trigger>
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner className={css.popLayer} align={align} sideOffset={6}>
+          <BaseMenu.Popup className={css.menu}>
+            {/* A group, so a <MenuLabel> names the entries under it. */}
+            <BaseMenu.Group>{children}</BaseMenu.Group>
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
   );
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <DropdownMenu.Label className={css.menuLabel}>{children}</DropdownMenu.Label>;
+  return <BaseMenu.GroupLabel className={css.menuLabel}>{children}</BaseMenu.GroupLabel>;
 }
 
 export function MenuItem({
@@ -68,9 +90,9 @@ export function MenuItem({
   danger?: boolean;
 }) {
   return (
-    <DropdownMenu.Item className={`${css.menuItem} ${danger ? css.menuItemDanger : ''}`} onSelect={onSelect}>
+    <BaseMenu.Item className={`${css.menuItem} ${danger ? css.menuItemDanger : ''}`} onClick={onSelect}>
       {children}
-    </DropdownMenu.Item>
+    </BaseMenu.Item>
   );
 }
 
@@ -85,16 +107,16 @@ export function MenuCheck({
   children: ReactNode;
 }) {
   return (
-    <DropdownMenu.CheckboxItem
+    <BaseMenu.CheckboxItem
       className={css.menuItem}
       checked={checked}
-      onCheckedChange={onChange}
-      onSelect={(event) => event.preventDefault()}>
+      onCheckedChange={(next) => onChange(next)}
+      closeOnClick={false}>
       <span className={css.menuIndicator}>
-        <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+        <BaseMenu.CheckboxItemIndicator>✓</BaseMenu.CheckboxItemIndicator>
       </span>
       {children}
-    </DropdownMenu.CheckboxItem>
+    </BaseMenu.CheckboxItem>
   );
 }
 
@@ -106,8 +128,8 @@ export interface Option<T extends string> {
 }
 
 /**
- * Picks one of a few options in a toolbar. An empty-string value cannot be
- * an option (a Radix constraint), so callers use a named "all" value.
+ * Picks one of a few options in a toolbar. Callers use a named "all" value
+ * rather than an empty string, so every option reads as a choice.
  */
 export function SelectBox<T extends string>({
   value,
@@ -124,13 +146,18 @@ export function SelectBox<T extends string>({
   size?: 'md' | 'sm';
 }) {
   return (
-    <Select.Root value={value} onValueChange={(next) => onChange(next as T)}>
+    <Select.Root
+      items={options}
+      value={value}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
+      }}>
       <Select.Trigger className={`${css.selectTrigger} ${size === 'sm' ? css.selectSmall : ''}`} aria-label={label}>
         <Select.Value />
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className={css.selectContent} position="popper" sideOffset={6}>
-          <Select.Viewport>
+        <Select.Positioner className={css.popLayer} align="start" sideOffset={6} alignItemWithTrigger={false}>
+          <Select.Popup className={css.selectContent}>
             {options.map((option) => (
               <Select.Item key={option.value} value={option.value} className={css.menuItem}>
                 <span className={css.menuIndicator}>
@@ -139,8 +166,8 @@ export function SelectBox<T extends string>({
                 <Select.ItemText>{option.label}</Select.ItemText>
               </Select.Item>
             ))}
-          </Select.Viewport>
-        </Select.Content>
+          </Select.Popup>
+        </Select.Positioner>
       </Select.Portal>
     </Select.Root>
   );
@@ -159,7 +186,7 @@ export function Confirm({
   confirmLabel,
   onConfirm,
 }: {
-  trigger: ReactNode;
+  trigger: ReactElement;
   title: string;
   children: ReactNode;
   confirmLabel: string;
@@ -167,23 +194,21 @@ export function Confirm({
 }) {
   return (
     <AlertDialog.Root>
-      <AlertDialog.Trigger asChild>{trigger}</AlertDialog.Trigger>
+      <AlertDialog.Trigger render={trigger} />
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={css.dialogOverlay} />
-        <AlertDialog.Content className={css.dialog}>
+        <AlertDialog.Backdrop className={css.dialogOverlay} />
+        <AlertDialog.Popup className={css.dialog}>
           <div className={css.dialogBody}>
             <AlertDialog.Title className={css.dialogTitle}>{title}</AlertDialog.Title>
-            <AlertDialog.Description asChild>
-              <div>{children}</div>
-            </AlertDialog.Description>
+            <AlertDialog.Description render={<div />}>{children}</AlertDialog.Description>
             <div className={css.dialogActions}>
-              <AlertDialog.Cancel className={kit.button({ variant: 'secondary' })}>Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action className={kit.button({ variant: 'danger' })} onClick={onConfirm}>
+              <AlertDialog.Close className={kit.button({ variant: 'secondary' })}>Cancel</AlertDialog.Close>
+              <AlertDialog.Close className={kit.button({ variant: 'danger' })} onClick={onConfirm}>
                 {confirmLabel}
-              </AlertDialog.Action>
+              </AlertDialog.Close>
             </div>
           </div>
-        </AlertDialog.Content>
+        </AlertDialog.Popup>
       </AlertDialog.Portal>
     </AlertDialog.Root>
   );
@@ -194,21 +219,22 @@ export function Confirm({
 /** Switches between views of the same subject inside one card. */
 export function Tabs({ tabs }: { tabs: { id: string; label: ReactNode; content: ReactNode }[] }) {
   return (
-    <RadixTabs.Root defaultValue={tabs[0]?.id}>
+    <BaseTabs.Root defaultValue={tabs[0]?.id}>
       <div className={css.tabListWrap}>
-        <RadixTabs.List className={css.tabList}>
+        {/* Arrow keys switch tabs as they move focus, as before. */}
+        <BaseTabs.List className={css.tabList} activateOnFocus>
           {tabs.map((tab) => (
-            <RadixTabs.Trigger key={tab.id} value={tab.id} className={css.tab}>
+            <BaseTabs.Tab key={tab.id} value={tab.id} className={css.tab}>
               {tab.label}
-            </RadixTabs.Trigger>
+            </BaseTabs.Tab>
           ))}
-        </RadixTabs.List>
+        </BaseTabs.List>
       </div>
       {tabs.map((tab) => (
-        <RadixTabs.Content key={tab.id} value={tab.id}>
+        <BaseTabs.Panel key={tab.id} value={tab.id}>
           {tab.content}
-        </RadixTabs.Content>
+        </BaseTabs.Panel>
       ))}
-    </RadixTabs.Root>
+    </BaseTabs.Root>
   );
 }

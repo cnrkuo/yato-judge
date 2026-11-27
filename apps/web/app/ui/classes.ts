@@ -182,10 +182,14 @@ export const table = {
   stale: 'opacity-50',
 };
 
-/** Radix UI primitives dressed as Bootstrap components. */
+/** Base UI primitives dressed as Bootstrap components. */
 export const overlay = {
-  // `position-static` keeps the menu in flow inside Radix's positioned wrapper.
+  // `position-static` keeps the menu in flow inside Base UI's positioner.
   menu: 'dropdown-menu show position-static shadow oj-pop',
+  /** The positioner around a menu or select list, at Bootstrap's dropdown z-index. */
+  popLayer: 'oj-pop-layer',
+  /** The positioner around a tooltip, at Bootstrap's tooltip z-index. */
+  tooltipLayer: 'oj-tooltip-layer',
   menuItem: 'dropdown-item d-flex align-items-center gap-2',
   menuItemDanger: 'text-danger',
   menuIndicator: 'oj-menu-indicator',
