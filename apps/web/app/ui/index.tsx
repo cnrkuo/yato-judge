@@ -1,13 +1,13 @@
 /**
  * The UI kit. Pages are composed from these components and write no class
- * names of their own; the Bootstrap classes behind them live in classes.ts.
- * See docs/design.md.
+ * names of their own. Underneath are shadcn/ui's components (ui/shadcn, on
+ * Base UI) and the Tailwind classes in classes.ts.
  */
 import { ContestPhase, VERDICT_LABEL, VERDICT_SHORT, Verdict } from '@yato/contract';
+import { cn } from 'cn';
 import {
   type ButtonHTMLAttributes,
   type ComponentProps,
-  cloneElement,
   isValidElement,
   type ReactElement,
   type ReactNode,
@@ -18,6 +18,13 @@ import { formatDateTime, formatOffset } from '~/lib/time';
 import type { loader as rootLoader } from '~/root';
 import { type ButtonVariant, css, type Tone, type VerdictKind } from './classes';
 import { Tip } from './overlays';
+import { Alert } from './shadcn/alert';
+import { Badge as ShadcnBadge } from './shadcn/badge';
+import { CardFooter, Card as ShadcnCard } from './shadcn/card';
+import { Input } from './shadcn/input';
+import { NativeSelect } from './shadcn/native-select';
+import { Spinner } from './shadcn/spinner';
+import { Textarea } from './shadcn/textarea';
 
 export type { Tone };
 export { css };
@@ -27,13 +34,12 @@ interface BoxProps {
   children: ReactNode;
   className?: string;
 }
-const cx = (...names: (string | false | null | undefined)[]) => names.filter(Boolean).join(' ');
 
 // ----------------------------------------------------------------- layout
 
 /** Children stacked vertically with one consistent gap. */
 export function Stack({ gap, children, className }: BoxProps & { gap?: Gap }) {
-  return <div className={cx(css.stack({ gap }), className)}>{children}</div>;
+  return <div className={cn(css.stack({ gap }), className)}>{children}</div>;
 }
 
 /** A row of things that wraps: buttons, filters, facts. */
@@ -44,7 +50,7 @@ export function Cluster({
   children,
   className,
 }: BoxProps & { gap?: Gap; align?: 'start' | 'center' | 'end'; justify?: 'start' | 'between' | 'end' }) {
-  return <div className={cx(css.cluster({ gap, align, justify }), className)}>{children}</div>;
+  return <div className={cn(css.cluster({ gap, align, justify }), className)}>{children}</div>;
 }
 
 /** Equal columns that collapse to one on small screens. */
@@ -88,8 +94,8 @@ export function PageHeader({
 }
 
 /**
- * A Bootstrap card. `flush` drops the body padding so a table or list can
- * run edge to edge; use `<CardBody>` inside a flush card for padded parts.
+ * shadcn's card. `flush` drops the body padding so a table or list can run
+ * edge to edge; use `<CardBody>` inside a flush card for padded parts.
  */
 export function Card({
   title,
@@ -105,23 +111,21 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className={flush ? css.cardFlush : css.card}>
+    <ShadcnCard className={flush ? 'gap-0 py-0' : undefined}>
       {(title || actions) && (
-        <div className={css.cardHeader}>
-          <Cluster justify="between">
-            <h2 className={css.cardTitle}>{title}</h2>
-            {actions}
-          </Cluster>
+        <div className={cn(css.cardHeader, css.cardBody, flush && 'pt-(--card-spacing)')}>
+          <h2 className={css.cardTitle}>{title}</h2>
+          {actions}
         </div>
       )}
       {flush ? children : <div className={css.cardBody}>{children}</div>}
-      {footer && <div className={css.cardFooter}>{footer}</div>}
-    </section>
+      {footer && <CardFooter>{footer}</CardFooter>}
+    </ShadcnCard>
   );
 }
 
 export function CardBody({ children, divided = false }: { children: ReactNode; divided?: boolean }) {
-  return <div className={divided ? css.cardSection : css.cardBody}>{children}</div>;
+  return <div className={divided ? css.cardSectionDivided : css.cardSection}>{children}</div>;
 }
 
 // ---------------------------------------------------------------- buttons
@@ -134,7 +138,8 @@ interface ButtonStyle {
 
 /**
  * One primary button per view at most; everything else is `secondary`.
- * `busy` shows a spinner and blocks repeated clicks.
+ * `busy` shows a spinner and blocks repeated clicks. A native button in
+ * shadcn's styles: inside a form it submits it, with or without JavaScript.
  */
 export function Button({
   variant,
@@ -148,10 +153,11 @@ export function Button({
   return (
     <button
       {...props}
-      className={cx(css.button({ variant, size, block }), className)}
+      className={cn(css.button({ variant, size, block }), className)}
       aria-busy={busy || undefined}
       disabled={props.disabled || busy}>
-      {busy && <span className={css.spinner} aria-hidden />} {children}
+      {busy && <Spinner className={css.spinner} />}
+      {children}
     </button>
   );
 }
@@ -168,20 +174,40 @@ export function ButtonLink({
 
 // ------------------------------------------------------------------ forms
 
-/** Adds Bootstrap's control class to a native form element. */
+/**
+ * Turns a native form element into shadcn's version of it: <Input>,
+ * <Textarea> or <NativeSelect>, all native underneath, so forms work
+ * without JavaScript. Checkboxes, radios and hidden inputs stay as they are.
+ */
 function control(element: ReactNode): ReactNode {
   if (!isValidElement(element) || typeof element.type !== 'string') return element;
-  const { type, props } = element as ReactElement<{ className?: string; type?: string }>;
-  if (type !== 'input' && type !== 'select' && type !== 'textarea') return element;
-  if (props.type === 'checkbox' || props.type === 'radio' || props.type === 'hidden') return element;
-  const base = type === 'select' ? css.select : css.input;
-  return cloneElement(element as ReactElement<{ className?: string }>, { className: cx(base, props.className) });
+  const props = (element as ReactElement<{ className?: string; type?: string }>).props;
+  const key = element.key ?? undefined;
+  switch (element.type) {
+    case 'input':
+      if (props.type === 'checkbox' || props.type === 'radio' || props.type === 'hidden') return element;
+      return <Input key={key} {...(props as ComponentProps<'input'>)} />;
+    case 'textarea':
+      return (
+        <Textarea key={key} {...(props as ComponentProps<'textarea'>)} className={cn(css.textarea, props.className)} />
+      );
+    case 'select':
+      return (
+        <NativeSelect
+          key={key}
+          {...(props as ComponentProps<typeof NativeSelect>)}
+          className={props.className ?? css.selectWrap}
+        />
+      );
+    default:
+      return element;
+  }
 }
 
 /**
  * Label above, control, optional hint below — the only form-row shape.
- * Put a native `<input>`, `<select>` or `<textarea>` inside; it is styled
- * as a Bootstrap form control automatically.
+ * Put a native `<input>`, `<select>` or `<textarea>` inside; it becomes
+ * shadcn's styled control automatically.
  */
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
@@ -189,7 +215,7 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
     <label className={css.field}>
       <span className={css.fieldLabel}>{label}</span>
       {control(children)}
-      {hint && <span className={`d-block ${css.fieldHint}`}>{hint}</span>}
+      {hint && <span className={css.fieldHint}>{hint}</span>}
     </label>
   );
 }
@@ -208,11 +234,12 @@ export function CheckGroup({ label, hint, children }: { label: string; hint?: Re
     <fieldset className={css.field}>
       <legend className={css.groupLabel}>{label}</legend>
       {children}
-      {hint && <span className={`d-block ${css.fieldHint}`}>{hint}</span>}
+      {hint && <span className={css.fieldHint}>{hint}</span>}
     </fieldset>
   );
 }
 
+/** A native checkbox, so it works in a form without JavaScript. */
 export function CheckField({ label, ...props }: { label: ReactNode } & ComponentProps<'input'>) {
   return (
     <label className={css.check}>
@@ -226,25 +253,33 @@ export function CheckField({ label, ...props }: { label: ReactNode } & Component
 export function Notice({ result }: { result?: { ok: boolean; error?: string; message?: string } | null }) {
   if (!result) return null;
   if (!result.ok) {
-    return (
-      <div role="alert" className={css.alert.danger}>
-        {result.error}
-      </div>
-    );
+    return <Alert className={css.alert.danger}>{result.error}</Alert>;
   }
   if (!result.message) return null;
-  return <output className={`d-block ${css.alert.success}`}>{result.message}</output>;
+  return (
+    <Alert role="status" className={css.alert.success}>
+      {result.message}
+    </Alert>
+  );
 }
 
 /** Standing information about the page's state (not the result of an action). */
 export function Callout({ tone = 'primary', children }: { tone?: Tone; children: ReactNode }) {
-  return <output className={`d-block ${css.alert[tone]}`}>{children}</output>;
+  return (
+    <Alert role="status" className={css.alert[tone]}>
+      {children}
+    </Alert>
+  );
 }
 
 // ------------------------------------------------------------ data display
 
 export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={css.badge[tone]}>{children}</span>;
+  return (
+    <ShadcnBadge variant="outline" className={css.badge[tone]}>
+      {children}
+    </ShadcnBadge>
+  );
 }
 
 /** Every verdict belongs to one kind, and so has one colour, everywhere it appears. */
@@ -272,17 +307,17 @@ export const verdictKind = (verdict: Verdict): VerdictKind => VERDICT_KIND[verdi
  * where it does not fit — except on narrow screens, which get the code.
  */
 export function VerdictBadge({ verdict, long = false }: { verdict: Verdict; long?: boolean }) {
-  const tone = cx(css.verdictText[verdictKind(verdict)], css.nowrap);
+  const tone = cn(css.verdictText[verdictKind(verdict)], css.nowrap);
   const short = (
     <Tip label={VERDICT_LABEL[verdict]}>
-      <span className={long ? cx(tone, css.narrowOnly) : tone}>{VERDICT_SHORT[verdict]}</span>
+      <span className={long ? cn(tone, css.narrowOnly) : tone}>{VERDICT_SHORT[verdict]}</span>
     </Tip>
   );
   if (!long) return short;
   // The name may wrap: even on a wide screen it can be wider than a tile.
   return (
     <>
-      <span className={cx(css.verdictText[verdictKind(verdict)], css.wideOnly)}>{VERDICT_LABEL[verdict]}</span>
+      <span className={cn(css.verdictText[verdictKind(verdict)], css.wideOnly)}>{VERDICT_LABEL[verdict]}</span>
       {short}
     </>
   );
@@ -313,7 +348,7 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 export function Muted({ children, small = false }: { children: ReactNode; small?: boolean }) {
-  return <span className={cx(css.muted, small && css.small)}>{children}</span>;
+  return <span className={cn(css.muted, small && css.small)}>{children}</span>;
 }
 
 // ------------------------------------------------------------ app helpers
@@ -337,7 +372,7 @@ export function Time({ value, withZone = false }: { value: string; withZone?: bo
   const { timeZone } = useRoot();
   const offset = formatOffset(value, timeZone);
   return (
-    <time dateTime={value} title={`${timeZone} (${offset})`} className={cx(css.nowrap, css.numeric)}>
+    <time dateTime={value} title={`${timeZone} (${offset})`} className={cn(css.nowrap, css.numeric)}>
       {formatDateTime(value, timeZone)}
       {withZone && <span className={css.muted}> {offset}</span>}
     </time>

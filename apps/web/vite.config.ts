@@ -1,4 +1,5 @@
 import { reactRouter } from '@react-router/dev/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { reactRouterHonoServer } from 'react-router-hono-server/dev';
 import { defineConfig } from 'vite';
 
@@ -15,7 +16,7 @@ export default defineConfig({
     //   ],
     // },
   },
-  plugins: [reactRouter(), reactRouterHonoServer()],
+  plugins: [tailwindcss(), reactRouter(), reactRouterHonoServer()],
   resolve: { tsconfigPaths: true },
   server: { port: 3000 },
 });

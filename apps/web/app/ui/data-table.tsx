@@ -8,10 +8,13 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table';
+import { cn } from 'cn';
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from 'lucide-react';
 import { type ReactNode, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { table as css, css as kit } from './classes';
 import { Menu, MenuCheck, MenuLabel, SelectBox } from './overlays';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from './shadcn/table';
 
 /**
  * The one table of the application. Every tabular view — problems,
@@ -19,8 +22,9 @@ import { Menu, MenuCheck, MenuLabel, SelectBox } from './overlays';
  * descriptions, so headers, density, alignment, sorting, empty states and
  * paging look and behave identically everywhere.
  *
- * TanStack Table provides the sorting and column-visibility logic; this file
- * is the only place that touches its API.
+ * TanStack Table provides the sorting and column-visibility logic, and
+ * shadcn's table the markup; this file is the only place that touches
+ * either.
  */
 
 export interface Column<T> {
@@ -139,59 +143,56 @@ export function DataTable<T extends RowData>({
       {data.length === 0 ? (
         empty
       ) : (
-        <div className={css.scroller}>
-          <table className={css.table} aria-busy={stale || undefined}>
-            {caption && <caption hidden>{caption}</caption>}
-            <thead>
-              {table.getHeaderGroups().map((group) => (
-                <tr key={group.id}>
-                  {group.headers.map((header) => {
-                    const column = columnOf(header.column.id);
-                    const sorted = header.column.getIsSorted();
-                    const label = column.headerNode ?? column.header;
-                    return (
-                      <th
-                        key={header.id}
-                        scope="col"
-                        className={`${css.headCell} ${css.align[column.align ?? 'left']}`}
-                        aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}>
-                        {header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            className={css.sortButton}
-                            onClick={header.column.getToggleSortingHandler()}>
-                            {label}
-                            <span aria-hidden className={css.sortIcon[sorted ? 'active' : 'idle']}>
-                              {sorted === 'asc' ? '▲' : sorted === 'desc' ? '▼' : '↕'}
-                            </span>
-                          </button>
-                        ) : (
-                          label
-                        )}
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody className={stale ? css.stale : undefined}>
-              {rows.map((row) => (
-                <tr key={row.id} className={`${css.row} ${highlight?.(row.original) ? css.rowHighlight : ''}`}>
-                  {row.getVisibleCells().map((cell) => {
-                    const column = columnOf(cell.column.id);
-                    return (
-                      <td
-                        key={cell.id}
-                        className={`${css.align[column.align ?? 'left']} ${column.cellClass?.(row.original) ?? ''}`}>
-                        {column.cell(row.original)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table aria-busy={stale || undefined}>
+          {caption && <TableCaption hidden>{caption}</TableCaption>}
+          <TableHeader>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((header) => {
+                  const column = columnOf(header.column.id);
+                  const sorted = header.column.getIsSorted();
+                  const label = column.headerNode ?? column.header;
+                  const SortIcon = sorted === 'asc' ? ArrowUpIcon : sorted === 'desc' ? ArrowDownIcon : ArrowUpDownIcon;
+                  return (
+                    <TableHead
+                      key={header.id}
+                      scope="col"
+                      className={cn(css.head, css.align[column.align ?? 'left'])}
+                      aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}>
+                      {header.column.getCanSort() ? (
+                        <button
+                          type="button"
+                          className={css.sortButton}
+                          onClick={header.column.getToggleSortingHandler()}>
+                          {label}
+                          <SortIcon aria-hidden className={css.sortIcon[sorted ? 'active' : 'idle']} />
+                        </button>
+                      ) : (
+                        label
+                      )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody className={stale ? css.stale : undefined}>
+            {rows.map((row) => (
+              <TableRow key={row.id} className={highlight?.(row.original) ? css.rowHighlight : undefined}>
+                {row.getVisibleCells().map((cell) => {
+                  const column = columnOf(cell.column.id);
+                  return (
+                    <TableCell
+                      key={cell.id}
+                      className={cn(css.cell, css.align[column.align ?? 'left'], column.cellClass?.(row.original))}>
+                      {column.cell(row.original)}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       {footer}
     </>

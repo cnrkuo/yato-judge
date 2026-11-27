@@ -10,6 +10,7 @@ import {
   Card,
   CardBody,
   Cluster,
+  Control,
   css,
   Empty,
   Field,
@@ -100,17 +101,19 @@ const participantColumns: Column<Participant>[] = [
         <Cluster>
           <input type="hidden" name="intent" value="participant" />
           <input type="hidden" name="userId" value={p.user.id} />
-          <select
-            className={`${css.select} ${css.inputWidth.auto}`}
-            name="state"
-            defaultValue={p.state}
-            aria-label={`State of ${p.user.username}`}>
-            {TEAM_STATES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Control>
+            <select
+              className={css.inputWidth.auto}
+              name="state"
+              defaultValue={p.state}
+              aria-label={`State of ${p.user.username}`}>
+              {TEAM_STATES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Control>
           <Button variant="secondary" size="sm">
             Set
           </Button>

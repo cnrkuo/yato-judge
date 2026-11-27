@@ -1,27 +1,21 @@
 /**
- * Every class name the interface uses, in one place. Styling is Bootstrap 5
- * in its dark colour mode; the `oj-*` names are the few additions in
- * `styles/app.css` for things Bootstrap has no utility for.
+ * Every class name the interface uses, in one place. Styling is Tailwind CSS
+ * with shadcn/ui's theme (Lyra style, neutral, dark only); the shadcn
+ * components themselves live in `ui/shadcn`, and the few `oj-*` rules in
+ * `styles/app.css` cover markup the app does not write (code, Markdown).
  *
  * Components in `ui/` read from here, and pages only use those components,
  * so a visual decision (say, how a secondary button looks) is made once.
+ *
+ * Tailwind generates only the classes it finds spelled out in the source:
+ * every name below is written in full, never assembled from pieces.
  */
+import { cn } from 'cn';
+import { buttonVariants } from './shadcn/button';
 
 export type Tone = 'neutral' | 'primary' | 'success' | 'danger' | 'warning' | 'info';
-/** Bootstrap's name for each tone. */
-const bs: Record<Tone, string> = {
-  neutral: 'secondary',
-  primary: 'primary',
-  success: 'success',
-  danger: 'danger',
-  warning: 'warning',
-  info: 'info',
-};
-const tones = Object.keys(bs) as Tone[];
-const byTone = (build: (name: string, tone: Tone) => string) =>
-  Object.fromEntries(tones.map((tone) => [tone, build(bs[tone], tone)])) as Record<Tone, string>;
 
-/** Kinds of verdict; each has its own colour (see `--oj-verdict-*` in app.css). */
+/** Kinds of verdict; each has its own colour (see `--verdict-*` in app.css). */
 export type VerdictKind = 'accepted' | 'wrong' | 'limit' | 'runtime' | 'compile' | 'restricted' | 'neutral';
 export const VERDICT_KINDS: readonly VerdictKind[] = [
   'accepted',
@@ -34,23 +28,25 @@ export const VERDICT_KINDS: readonly VerdictKind[] = [
 ];
 
 type Gap = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-const gapClass: Record<Gap, string> = { xs: 'gap-1', sm: 'gap-2', md: 'gap-3', lg: 'gap-4', xl: 'gap-5' };
+const gapClass: Record<Gap, string> = { xs: 'gap-1', sm: 'gap-2', md: 'gap-4', lg: 'gap-6', xl: 'gap-12' };
+const alignClass = { start: 'items-start', center: 'items-center', end: 'items-end' } as const;
+const justifyClass = { start: 'justify-start', between: 'justify-between', end: 'justify-end' } as const;
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'link';
-const buttonVariant: Record<ButtonVariant, string> = {
-  primary: 'btn btn-primary oj-btn-primary',
-  // Bootstrap's outline colours are too dim on the dark background; the
-  // oj- classes keep its behaviour and swap in readable text colours.
-  secondary: 'btn btn-outline-secondary oj-btn-secondary',
-  danger: 'btn btn-outline-danger oj-btn-danger',
-  link: 'btn btn-link p-0 align-baseline',
-};
+/** The kit's button names on shadcn's variants. */
+const shadcnVariant = {
+  primary: 'default',
+  secondary: 'outline',
+  danger: 'destructive',
+  link: 'link',
+} as const satisfies Record<ButtonVariant, string>;
 
 export const css = {
-  container: 'container-xl',
+  /** Bootstrap's container widths, kept so pages stay as wide as they were. */
+  container: 'mx-auto w-full px-4 xl:max-w-[1140px] 2xl:max-w-[1320px]',
 
   // ---- layout
-  stack: ({ gap = 'md' }: { gap?: Gap } = {}) => `d-flex flex-column oj-min0 ${gapClass[gap]}`,
+  stack: ({ gap = 'md' }: { gap?: Gap } = {}) => `flex min-w-0 flex-col ${gapClass[gap]}`,
   cluster: ({
     gap = 'sm',
     align = 'center',
@@ -59,10 +55,20 @@ export const css = {
     gap?: Gap;
     align?: 'start' | 'center' | 'end';
     justify?: 'start' | 'between' | 'end';
-  } = {}) => `d-flex flex-wrap oj-min0 ${gapClass[gap]} align-items-${align} justify-content-${justify}`,
-  grid: ({ columns = 2 }: { columns?: 2 | 3 | 'tiles' } = {}) => `oj-grid oj-grid-${columns}`,
-  split: ({ aside = 'narrow' }: { aside?: 'narrow' | 'wide' | 'half' } = {}) => `oj-split oj-split-${aside}`,
-  measure: { form: 'oj-measure-form', page: 'oj-measure-page' },
+  } = {}) => `flex min-w-0 flex-wrap ${gapClass[gap]} ${alignClass[align]} ${justifyClass[justify]}`,
+  grid: ({ columns = 2 }: { columns?: 2 | 3 | 'tiles' } = {}) =>
+    ({
+      2: 'grid grid-cols-1 gap-4 md:grid-cols-2',
+      3: 'grid grid-cols-1 gap-4 md:grid-cols-3',
+      tiles: 'grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-4',
+    })[columns],
+  split: ({ aside = 'narrow' }: { aside?: 'narrow' | 'wide' | 'half' } = {}) =>
+    ({
+      narrow: 'grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]',
+      wide: 'grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_23rem]',
+      half: 'grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]',
+    })[aside],
+  measure: { form: 'mx-auto w-full max-w-[24rem]', page: 'mx-auto w-full max-w-[50rem]' },
 
   // ---- buttons
   button: ({
@@ -73,135 +79,157 @@ export const css = {
     variant?: ButtonVariant;
     size?: 'md' | 'sm';
     block?: boolean;
-  } = {}) => `${buttonVariant[variant]}${size === 'sm' && variant !== 'link' ? ' btn-sm' : ''}${block ? ' w-100' : ''}`,
-  spinner: 'spinner-border spinner-border-sm',
+  } = {}) =>
+    cn(
+      buttonVariants({ variant: shadcnVariant[variant], size: size === 'sm' ? 'sm' : 'default' }),
+      // As a <Link>, a secondary button keeps the text colour, not the link's.
+      variant === 'secondary' && 'text-foreground hover:text-foreground',
+      // shadcn's 30 % hover leaves the red text at 4.4 : 1; 25 % keeps it above 4.5 : 1.
+      variant === 'danger' && 'dark:hover:bg-destructive/25',
+      // A link-styled button sits in running text: link colour, no box.
+      variant === 'link' && 'h-auto p-0 text-link hover:text-link-hover',
+      block && 'w-full',
+      'no-underline',
+    ),
 
-  // ---- card
-  card: 'card',
-  /** Clips an edge-to-edge table to the card's rounded corners. */
-  cardFlush: 'card overflow-hidden',
-  cardHeader: 'card-header',
-  cardTitle: 'h6 mb-0',
-  cardBody: 'card-body',
-  cardSection: 'card-body border-top',
-  cardFooter: 'card-footer',
+  // ---- card (see <Card>; the box itself is shadcn's)
+  cardHeader: 'flex flex-wrap items-center justify-between gap-2 border-b pb-(--card-spacing)',
+  cardTitle: 'text-sm font-medium',
+  cardBody: 'px-(--card-spacing)',
+  /** A padded part of a flush card. */
+  cardSection: 'p-(--card-spacing)',
+  cardSectionDivided: 'border-t p-(--card-spacing)',
 
   // ---- page header
-  pageHeader: 'd-flex flex-wrap justify-content-between align-items-end gap-3 mb-4',
+  pageHeader: 'mb-6 flex flex-wrap items-end justify-between gap-4',
   /** A page header beside an image (a profile's avatar), which sets the spacing below. */
-  pageHeaderTight: 'd-flex flex-wrap justify-content-between align-items-end gap-3 mb-2',
+  pageHeaderTight: 'mb-2 flex flex-wrap items-end justify-between gap-4',
   /** A bar above the page header that places the page in a larger context (a contest). */
-  contextBar: 'd-block mb-4',
-  pageTitle: 'h2 mb-0',
-  pageMeta: 'text-body-secondary small mt-1',
+  contextBar: 'mb-6 block',
+  pageTitle: 'font-heading text-2xl font-semibold tracking-tight',
+  pageMeta: 'mt-1 text-xs text-muted-foreground',
 
   // ---- forms
-  field: 'd-block mb-0',
-  fieldLabel: 'form-label',
-  /** A fieldset's legend, sized like a field label: Bootstrap's reboot sizes legends as headings. */
-  groupLabel: 'form-label fs-6',
-  fieldHint: 'form-text',
-  // `oj-control` gives fields a border visible against the page (3 : 1).
-  input: 'form-control oj-control',
-  select: 'form-select oj-control',
-  check: 'form-check mb-0',
-  checkInput: 'form-check-input oj-control',
-  checkLabel: 'form-check-label',
+  field: 'flex min-w-0 flex-col gap-1.5',
+  fieldLabel: 'text-xs font-medium',
+  /** A fieldset's legend, sized like a field label. */
+  groupLabel: 'mb-1.5 text-xs font-medium',
+  fieldHint: 'block text-xs text-muted-foreground',
+  /** Textareas keep the height their `rows` give them, instead of growing with the text. */
+  textarea: 'field-sizing-fixed',
+  /** A full-width native select inside a <Field>. */
+  selectWrap: 'w-full',
+  check: 'flex items-center gap-2 text-xs',
+  checkInput: 'size-3.5 shrink-0 accent-primary',
+  checkLabel: '',
   /** Controls that should not stretch (filters, short numbers). */
   /** `auto` fits the content, but never beyond its container (long option labels on a phone). */
-  inputWidth: { xs: 'oj-w-xs', sm: 'oj-w-sm', md: 'oj-w-md', auto: 'w-auto mw-100' },
-  monoInput: 'font-monospace oj-code-size',
+  inputWidth: { xs: 'w-24', sm: 'w-40', md: 'w-64', auto: 'w-auto max-w-full' },
+  monoInput: 'font-mono',
 
   // ---- tones
-  /**
-   * Coloured text only — for values inside tables. The `-emphasis` shades
-   * are Bootstrap's dark-mode text colours; the plain `text-success` and
-   * `text-danger` fall below 4.5 : 1 on the dark background.
-   */
-  toneText: byTone((name, tone) =>
-    tone === 'neutral' ? 'fw-semibold text-body-secondary' : `fw-semibold text-${name}-emphasis`,
-  ),
+  /** Coloured text only — for values inside tables. */
+  toneText: {
+    neutral: 'font-semibold text-muted-foreground',
+    primary: 'font-semibold text-blue-300',
+    success: 'font-semibold text-emerald-300',
+    danger: 'font-semibold text-red-300',
+    warning: 'font-semibold text-amber-300',
+    info: 'font-semibold text-cyan-300',
+  } satisfies Record<Tone, string>,
   /** Tinted block or table cell with matching text. */
-  toneFill: byTone((name) => `bg-${name}-subtle text-${name}-emphasis`),
-  alert: byTone((name) => `alert alert-${name} py-2 mb-0`),
-  badge: byTone(
-    (name) => `badge rounded-1 fw-medium bg-${name}-subtle text-${name}-emphasis border border-${name}-subtle`,
-  ),
-  notice: 'rounded p-3',
+  toneFill: {
+    neutral: 'bg-muted text-foreground',
+    primary: 'bg-blue-500/15 text-blue-200',
+    success: 'bg-emerald-500/15 text-emerald-200',
+    danger: 'bg-red-500/15 text-red-200',
+    warning: 'bg-amber-500/15 text-amber-200',
+    info: 'bg-cyan-500/15 text-cyan-200',
+  } satisfies Record<Tone, string>,
+  /** On shadcn's <Alert>. */
+  alert: {
+    neutral: 'border-border bg-card text-card-foreground',
+    primary: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
+    success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+    danger: 'border-red-500/30 bg-red-500/10 text-red-200',
+    warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+    info: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200',
+  } satisfies Record<Tone, string>,
+  /** On shadcn's <Badge variant="outline">. */
+  badge: {
+    neutral: 'border-border bg-muted text-muted-foreground',
+    primary: 'border-blue-500/30 bg-blue-500/15 text-blue-300',
+    success: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300',
+    danger: 'border-red-500/30 bg-red-500/15 text-red-300',
+    warning: 'border-amber-500/30 bg-amber-500/15 text-amber-300',
+    info: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-300',
+  } satisfies Record<Tone, string>,
+  notice: 'p-3',
   /** Verdict text, in its kind's colour. */
-  verdictText: Object.fromEntries(VERDICT_KINDS.map((kind) => [kind, `fw-semibold oj-verdict-${kind}`])) as Record<
-    VerdictKind,
-    string
-  >,
+  verdictText: {
+    accepted: 'font-semibold text-verdict-accepted',
+    wrong: 'font-semibold text-verdict-wrong',
+    limit: 'font-semibold text-verdict-limit',
+    runtime: 'font-semibold text-verdict-runtime',
+    compile: 'font-semibold text-verdict-compile',
+    restricted: 'font-semibold text-verdict-restricted',
+    neutral: 'font-semibold text-verdict-neutral',
+  } satisfies Record<VerdictKind, string>,
 
   // ---- data display
-  stat: 'card card-body py-2',
-  statLabel: 'small text-body-secondary',
-  statValue: 'fs-5 fw-semibold mb-0',
-  empty: 'text-center text-body-secondary py-5 mb-0',
-  list: 'list-group list-group-flush',
-  listItem: 'list-group-item d-flex align-items-center gap-3',
-  avatar: 'rounded border oj-avatar',
+  stat: 'bg-card px-3 py-2 ring-1 ring-foreground/10',
+  statLabel: 'text-xs text-muted-foreground',
+  statValue: 'text-lg font-semibold tabular-nums',
+  empty: 'px-4 py-10 text-center text-xs text-muted-foreground',
+  list: 'divide-y divide-border',
+  listItem: 'flex items-center gap-4 px-(--card-spacing) py-2.5 text-xs [&_a]:no-underline [&_a:hover]:underline',
+  avatar: 'size-16 object-cover ring-1 ring-foreground/10',
 
   // ---- text helpers
-  muted: 'text-body-secondary',
-  small: 'small',
-  nowrap: 'text-nowrap',
+  muted: 'text-muted-foreground',
+  small: 'text-xs',
+  nowrap: 'whitespace-nowrap',
   /** Shown only from the `md` breakpoint up, and only below it. */
-  wideOnly: 'd-none d-md-inline',
-  narrowOnly: 'd-md-none',
-  numeric: 'oj-num',
-  truncate: 'text-truncate',
-  grow: 'oj-grow',
-  preWrap: 'oj-pre-wrap mb-0',
-  srOnly: 'visually-hidden',
+  wideOnly: 'hidden md:inline',
+  narrowOnly: 'md:hidden',
+  numeric: 'tabular-nums',
+  truncate: 'truncate',
+  grow: 'min-w-0 flex-1',
+  preWrap: 'whitespace-pre-wrap [overflow-wrap:anywhere]',
+  srOnly: 'sr-only',
+  spinner: 'size-3.5',
 };
 
 export const table = {
-  scroller: 'table-responsive',
-  table: 'table table-hover table-sm align-middle mb-0 oj-table',
-  headCell: 'oj-th',
-  sortButton: 'oj-sort',
-  sortIcon: { idle: 'opacity-25', active: 'text-primary' },
-  row: '',
+  /** Body cells wrap (shadcn's keep to one line); headers stay on one. */
+  head: 'text-muted-foreground [&_a]:no-underline [&_a:hover]:underline',
+  cell: 'whitespace-normal [&_a]:no-underline [&_a:hover]:underline',
+  sortButton: 'inline-flex items-center gap-1 hover:text-foreground',
+  sortIcon: { idle: 'size-3 opacity-40', active: 'size-3 text-foreground' },
   /** The viewer's own row on a scoreboard. */
-  rowHighlight: 'oj-row-own',
-  align: { left: 'text-start', right: 'text-end oj-num', center: 'text-center' },
+  rowHighlight: 'bg-blue-500/10 hover:bg-blue-500/15',
+  align: { left: 'text-left', right: 'text-right tabular-nums', center: 'text-center' },
   /** Scoreboard cells: fixed width, two short lines. */
-  scoreCell: 'oj-score-cell',
-  scoreCellSub: 'oj-score-sub',
+  scoreCell: 'min-w-14 text-center leading-tight',
+  scoreCellSub: 'block text-[0.7rem] font-normal',
   /** A scored cell's link to the submission it counts. */
-  scoreLink: 'oj-score-link',
-  toolbar: 'd-flex flex-wrap justify-content-between align-items-end gap-3 p-3 border-bottom',
-  footer:
-    'd-flex flex-wrap justify-content-between align-items-center gap-3 px-3 py-2 border-top small text-body-secondary',
+  scoreLink: 'block text-inherit no-underline hover:underline',
+  toolbar: 'flex flex-wrap items-end justify-between gap-4 border-b p-3',
+  footer: 'flex flex-wrap items-center justify-between gap-4 border-t px-3 py-2 text-xs text-muted-foreground',
   /** Previous / next page: plain links, underlined on hover; at either end, plain text. */
-  pager: 'd-inline-flex flex-wrap align-items-baseline gap-3',
-  pagerLink: 'oj-pager-link',
+  pager: 'inline-flex flex-wrap items-baseline gap-4',
+  pagerLink: 'no-underline hover:underline',
   /** Dims the body while newer data is on its way. */
   stale: 'opacity-50',
 };
 
-/** Radix UI primitives dressed as Bootstrap components. */
+/** Classes for the shadcn overlays (ui/overlays.tsx) beyond their own. */
 export const overlay = {
-  // `position-static` keeps the menu in flow inside Radix's positioned wrapper.
-  menu: 'dropdown-menu show position-static shadow oj-pop',
-  menuItem: 'dropdown-item d-flex align-items-center gap-2',
-  menuItemDanger: 'text-danger',
-  menuIndicator: 'oj-menu-indicator',
-  menuLabel: 'dropdown-header',
-  selectTrigger: 'form-select w-auto text-start',
-  selectSmall: 'form-select-sm',
-  selectContent: 'dropdown-menu show position-static shadow oj-pop',
-  tooltip: 'oj-tooltip',
-  dialogOverlay: 'oj-dialog-backdrop',
-  dialog: 'oj-dialog card shadow-lg',
-  dialogBody: 'card-body',
-  dialogTitle: 'h5',
-  dialogActions: 'd-flex justify-content-end gap-2 mt-4',
-  tabList: 'nav nav-tabs card-header-tabs oj-tabs',
-  tabListWrap: 'card-header',
-  tab: 'nav-link',
+  menuLabel: 'text-muted-foreground',
+  dialogBody: 'text-xs/relaxed text-muted-foreground',
+  /** Tabs heading a card: the line-style tab list on the card's top edge. */
+  tabs: 'gap-0',
+  tabBar: 'border-b px-(--card-spacing) pt-(--card-spacing)',
 };
 
 export const code = {
@@ -214,21 +242,24 @@ export const code = {
   editor: 'oj-editor',
   editorReady: 'oj-editor oj-editor-ready',
   editorHost: 'oj-editor-host',
-  fileLink: 'btn btn-link btn-sm p-0 mt-1',
+  fileLink: 'mt-1 inline-block cursor-pointer text-xs text-link no-underline hover:text-link-hover hover:underline',
 };
 
 export const shell = {
-  page: 'd-flex flex-column min-vh-100',
-  header: 'navbar navbar-expand bg-body-tertiary border-bottom py-1',
-  nav: 'd-flex flex-wrap align-items-center column-gap-3',
-  brand: 'navbar-brand fw-semibold me-2',
-  navLinks: 'navbar-nav flex-wrap flex-grow-1',
-  navLink: 'nav-link',
-  navLinkActive: 'nav-link active fw-semibold',
-  navEnd: 'navbar-nav flex-wrap align-items-center gap-1',
-  main: 'flex-grow-1 py-4',
-  footer: 'border-top py-3 text-center small text-body-secondary',
-  errorPage: 'container text-center py-5 oj-measure-form',
+  /** On <html>: shadcn's dark palette, the only one. */
+  html: 'dark',
+  page: 'flex min-h-svh flex-col',
+  header: 'border-b bg-card',
+  nav: 'flex flex-wrap items-center gap-x-4 gap-y-1 py-2',
+  brand: 'mr-2 text-base font-semibold text-foreground no-underline hover:text-foreground',
+  navLinks: 'flex flex-1 flex-wrap items-center gap-x-1',
+  navLink: 'px-2 py-1 text-sm text-muted-foreground no-underline hover:text-foreground',
+  navLinkActive: 'px-2 py-1 text-sm font-semibold text-foreground no-underline hover:text-foreground',
+  navEnd: 'flex flex-wrap items-center gap-1',
+  main: 'flex-1 py-6',
+  footer: 'border-t py-4 text-center text-xs text-muted-foreground',
+  errorPage: 'mx-auto flex w-full max-w-[24rem] flex-col items-center gap-4 px-4 py-16 text-center',
+  errorTitle: 'text-2xl font-semibold',
 };
 
 export const prose = 'oj-prose';
