@@ -22,6 +22,7 @@ import { formatOffset } from './lib/time';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/400-italic.css';
 import '@fontsource/jetbrains-mono/600.css';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/app.css';
 import { Button, ButtonLink, css } from './ui';
 import { shell } from './ui/classes';
@@ -70,8 +71,8 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
-    // Dark mode only: shadcn/ui's dark palette, fixed for every visitor.
-    <html lang="en" className={shell.html}>
+    // Dark mode only: Bootstrap's dark palette, fixed for every visitor.
+    <html lang="en" data-bs-theme="dark">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
@@ -135,7 +136,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delay={200}>
+      <TooltipProvider delayDuration={200}>
         <div className={shell.page}>
           <header className={shell.header}>
             <nav aria-label="Main" className={`${css.container} ${shell.nav}`}>
@@ -207,7 +208,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
   return (
     <main className={shell.errorPage}>
-      <h1 className={shell.errorTitle}>{title}</h1>
+      <h1>{title}</h1>
       <p className={css.muted}>{detail}</p>
       <p>
         <a className={css.button({ variant: 'secondary' })} href="/">

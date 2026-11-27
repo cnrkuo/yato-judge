@@ -18,37 +18,25 @@ self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
 const THEME = 'yato-dark';
 
-/**
- * Any CSS colour (`oklch(…)`, `rgb(…)`, a keyword) as Monaco wants it,
- * `#rrggbb`: the browser paints it on a one-pixel canvas, over the page's
- * background, so it also resolves transparency.
- */
-function hex(color: string, under = '#000'): string | undefined {
-  const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-  if (!context || !color) return undefined;
-  context.fillStyle = under;
-  context.fillRect(0, 0, 1, 1);
-  context.fillStyle = color;
-  context.fillRect(0, 0, 1, 1);
-  const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
-  return `#${[r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
+/** `rgb(13, 17, 23)` or `rgba(…)` as Monaco wants colours: `#0d1117`. */
+function hex(color: string): string | undefined {
+  const [r, g, b] = color.match(/\d+(\.\d+)?/g)?.map(Number) ?? [];
+  if (r === undefined || g === undefined || b === undefined) return undefined;
+  return `#${[r, g, b].map((part) => Math.round(part).toString(16).padStart(2, '0')).join('')}`;
 }
 
-/** Monaco's dark theme on the site's own colours: the theme tokens of app.css. */
-function defineTheme(): void {
+/** Monaco's dark theme on the site's own colours, as the page's stylesheet sets them. */
+function defineTheme(from: HTMLElement): void {
+  const style = getComputedStyle(from);
   const root = getComputedStyle(document.documentElement);
-  const token = (name: string) => root.getPropertyValue(name).trim();
-  const background = hex(token('--background')) ?? '';
+  const variable = (name: string) => hex(root.getPropertyValue(name).trim()) ?? '';
   const colors: Record<string, string> = {
-    // The editor's frame has the page's background (see .oj-editor-host).
-    'editor.background': background,
-    'editorGutter.background': background,
-    'editor.foreground': hex(token('--foreground')) ?? '',
-    'editorLineNumber.foreground': hex(token('--muted-foreground')) ?? '',
-    // Monaco's own placeholder grey is 3 : 1 on this background; muted text is 4.5 : 1 or more.
-    'editor.placeholder.foreground': hex(token('--muted-foreground')) ?? '',
-    'editorWidget.background': hex(token('--popover')) ?? '',
-    'editorWidget.border': hex(token('--border'), background) ?? '',
+    'editor.background': hex(style.backgroundColor) ?? '',
+    'editor.foreground': hex(style.color) ?? '',
+    'editorLineNumber.foreground': variable('--bs-secondary-color'),
+    'editorGutter.background': hex(style.backgroundColor) ?? '',
+    'editorWidget.background': variable('--bs-tertiary-bg'),
+    'editorWidget.border': variable('--bs-border-color'),
   };
   monaco.editor.defineTheme(THEME, {
     base: 'vs-dark',
@@ -75,7 +63,7 @@ export interface CodeEditor {
  * every change, so the surrounding form submits it as before.
  */
 export function mountCodeEditor(host: HTMLElement, source: HTMLTextAreaElement, language: EditorLanguage): CodeEditor {
-  defineTheme();
+  defineTheme(source);
   const style = getComputedStyle(source);
   const lineHeight = Number.parseFloat(style.lineHeight);
   const editor = monaco.editor.create(host, {

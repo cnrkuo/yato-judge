@@ -90,10 +90,5 @@
       "enabled": true,
       "trailingCommas": "none"
     }
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
   }
 }

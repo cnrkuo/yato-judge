@@ -3,8 +3,6 @@ import type { ChangeEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { code as css, css as kit } from './classes';
 import type { CodeEditor, EditorLanguage } from './code-editor.client';
-import { NativeSelect } from './shadcn/native-select';
-import { Textarea } from './shadcn/textarea';
 
 export { languageName };
 
@@ -24,8 +22,8 @@ export function LanguageSelect({
   defaultValue?: Language;
 }) {
   return (
-    <NativeSelect
-      className={kit.inputWidth.auto}
+    <select
+      className={`${kit.select} ${kit.inputWidth.auto}`}
       name="language"
       defaultValue={languages.includes(defaultValue) ? defaultValue : languages[0]}
       aria-label="Language">
@@ -34,7 +32,7 @@ export function LanguageSelect({
           {LANGUAGE_LABEL[language]}
         </option>
       ))}
-    </NativeSelect>
+    </select>
   );
 }
 
@@ -122,9 +120,9 @@ export function CodeInput({
   return (
     <div>
       <div className={ready ? css.editorReady : css.editor}>
-        <Textarea
+        <textarea
           ref={area}
-          className={`${kit.textarea} ${kit.monoInput}`}
+          className={`${kit.input} ${kit.monoInput}`}
           name={name}
           rows={rows}
           maxLength={maxLength}
