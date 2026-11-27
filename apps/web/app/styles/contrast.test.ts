@@ -2,63 +2,80 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { css, type Tone, table } from '../ui/classes';
 
 /**
  * WCAG 2.2 AA contrast for every foreground/background pair the interface
- * uses, computed from the real stylesheets: Bootstrap's dark colour mode as
- * shipped, plus the overrides in styles/app.css. Upgrading Bootstrap or
- * touching a colour re-checks everything.
+ * uses, computed from the real sources: the theme tokens in styles/app.css
+ * (shadcn/ui's neutral dark palette plus ours), Tailwind's own colour
+ * palette for the tones, and the class names in ui/classes.ts. Touching a
+ * token, a tone's classes or Tailwind's palette re-checks everything.
  *
  * Thresholds: 4.5 : 1 for text, 3 : 1 for the borders that identify a
  * control (WCAG 1.4.11). The browser-level audit of real pages is
  * `pnpm audit:contrast` (scripts/audit-contrast.mjs).
  */
 
-const bootstrapCss = readFileSync(createRequire(import.meta.url).resolve('bootstrap/dist/css/bootstrap.css'), 'utf8');
 const appCss = readFileSync(join(import.meta.dirname, 'app.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const tailwindTheme = readFileSync(createRequire(import.meta.url).resolve('tailwindcss/theme.css'), 'utf8');
 
 /** Custom properties declared inside the first block whose selector matches. */
-function declarations(css: string, selector: RegExp): Record<string, string> {
-  const match = selector.exec(css);
+function declarations(source: string, selector: RegExp): Record<string, string> {
+  const match = selector.exec(source);
   if (!match) throw new Error(`No block for ${selector}`);
-  const body = css.slice(match.index + match[0].length, css.indexOf('}', match.index));
+  const body = source.slice(match.index + match[0].length, source.indexOf('}', match.index));
   return Object.fromEntries(
     [...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name = '', value = '']) => [name, value.trim()]),
   );
 }
 
-// Same cascade as the browser: Bootstrap's root block, its dark block, ours.
+/** Our theme (`:root`) over Tailwind's palette (`--color-*`), as the browser cascades them. */
 const vars: Record<string, string> = {
-  ...declarations(bootstrapCss, /:root,\s*\[data-bs-theme=light\]\s*\{/),
-  ...declarations(bootstrapCss, /\[data-bs-theme=dark\]\s*\{/),
-  ...declarations(appCss, /:root\[data-bs-theme=['"]dark['"]\]\s*\{/),
+  ...declarations(tailwindTheme, /@theme default\s*\{/),
+  ...declarations(appCss, /:root\s*\{/),
 };
-const scoped = (selector: RegExp) => ({ ...vars, ...declarations(appCss, selector) });
 
 type Rgba = [number, number, number, number];
 
-function resolve(value: string, scope: Record<string, string>, depth = 0): string {
+function resolve(value: string, depth = 0): string {
   if (depth > 10) throw new Error(`Cyclic variable in ${value}`);
   return value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
-    const next = scope[name];
+    const next = vars[name];
     if (next === undefined) throw new Error(`Undefined variable ${name}`);
-    return resolve(next, scope, depth + 1);
+    return resolve(next, depth + 1);
   });
 }
 
-function parse(value: string, scope: Record<string, string> = vars): Rgba {
-  const text = resolve(value, scope).trim();
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text)?.[1];
-  if (hex) {
-    const full = hex.length === 3 ? [...hex].map((c) => c + c).join('') : hex;
-    return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)).concat(1) as Rgba;
+const number = (part: string) => (part.endsWith('%') ? Number.parseFloat(part) / 100 : Number(part));
+
+/** OKLCH (CSS Color 4) to sRGB 0–255. */
+function oklch(lightness: number, chroma: number, hue: number): [number, number, number] {
+  const a = chroma * Math.cos((hue * Math.PI) / 180);
+  const b = chroma * Math.sin((hue * Math.PI) / 180);
+  const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+  return linear.map((c) => {
+    const v = Math.min(1, Math.max(0, c));
+    return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+  }) as [number, number, number];
+}
+
+function parse(value: string): Rgba {
+  const text = resolve(value).trim();
+  const short = /^#([0-9a-f]{3})$/i.exec(text)?.[1];
+  const hex = short ? [...short].map((c) => c + c).join('') : /^#([0-9a-f]{6})$/i.exec(text)?.[1];
+  if (hex) return [0, 2, 4].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)).concat(1) as Rgba;
+  const lch = /^oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(text);
+  if (lch) {
+    const [, l = '0', c = '0', h = '0', alpha] = lch;
+    return [...oklch(number(l), number(c), number(h)), alpha === undefined ? 1 : number(alpha)];
   }
-  const rgba = /^rgba?\(([^)]+)\)$/.exec(text)?.[1];
-  if (rgba) {
-    const [r = 0, g = 0, b = 0, a = 1] = rgba.split(',').map(Number);
-    return [r, g, b, a];
-  }
-  if (text === 'white') return [255, 255, 255, 1];
   throw new Error(`Cannot parse colour ${value} → ${text}`);
 }
 
@@ -73,147 +90,149 @@ const over = ([r, g, b, a]: Rgba, [br, bg, bb]: Rgba): Rgba => [
 function luminance([r, g, b]: Rgba): number {
   const channel = (value: number) => {
     const c = value / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
-function ratio(foreground: string, background: string, scope = vars): number {
-  const page = parse('var(--bs-body-bg)');
-  const bg = over(parse(background, scope), page);
-  const fg = over(parse(foreground, scope), bg);
-  const [light = 0, dark = 0] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+/** A colour as a layer: a token or palette name, with an optional Tailwind opacity (`blue-500/15`). */
+interface Layer {
+  colour: string;
+  alpha?: number;
+}
+const token = (name: string): string => (vars[`--${name}`] ? `var(--${name})` : `var(--color-${name})`);
+const layer = (spec: string): Layer => {
+  const [name = '', opacity] = spec.split('/');
+  return { colour: token(name), alpha: opacity === undefined ? 1 : Number(opacity) / 100 };
+};
+const flatten = (layers: Layer[]): Rgba =>
+  layers.reduce<Rgba>((under, { colour, alpha = 1 }) => {
+    const [r, g, b, a] = parse(colour);
+    return over([r, g, b, a * alpha], under);
+  }, parse('var(--background)'));
+
+function ratio(foreground: Layer, background: Layer[]): number {
+  const bg = flatten(background);
+  const [r, g, b, a] = parse(foreground.colour);
+  const fg = over([r, g, b, a * (foreground.alpha ?? 1)], bg);
+  const [light = 0, dark = 0] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
   return Math.round(((light + 0.05) / (dark + 0.05)) * 100) / 100;
 }
 
-/** Surfaces text appears on: page and cards, card headers / table headers / navbar, hover. */
-const SURFACES = { page: 'var(--bs-body-bg)', raised: 'var(--bs-tertiary-bg)', hover: 'var(--bs-secondary-bg)' };
-const TONES = ['primary', 'secondary', 'success', 'danger', 'warning', 'info'];
+/** Surfaces text appears on: the page, cards and menus, and a hovered table row. */
+const SURFACES: Record<string, Layer[]> = {
+  page: [],
+  card: [layer('card')],
+  'hovered row': [layer('card'), layer('muted/50')],
+};
 
-function check(pairs: [name: string, foreground: string, background: string][], minimum: number, scope = vars) {
+function check(pairs: [name: string, foreground: Layer, background: Layer[]][], minimum: number) {
   const failures = pairs
-    .map(([name, fg, bg]) => [name, ratio(fg, bg, scope)] as const)
+    .map(([name, fg, bg]) => [name, ratio(fg, bg)] as const)
     .filter(([, value]) => value < minimum)
     .map(([name, value]) => `${name}: ${value} : 1`);
   expect(failures, `below ${minimum} : 1`).toEqual([]);
 }
 
-const onSurfaces = (name: string, colour: string): [string, string, string][] =>
+const onSurfaces = (name: string, colour: Layer): [string, Layer, Layer[]][] =>
   Object.entries(SURFACES).map(([surface, bg]) => [`${name} on ${surface}`, colour, bg]);
+
+/** The `bg-*` colour in a class list from ui/classes.ts (hover variants aside). */
+function fill(classes: string): Layer | undefined {
+  const bg = /(?:^|\s)bg-([a-z]+(?:-[a-z]+)*(?:-\d+)?(?:\/\d+)?)(?=\s|$)/.exec(classes)?.[1];
+  return bg ? layer(bg) : undefined;
+}
+
+/** The `text-*` and `bg-*` colours in a class list from ui/classes.ts. */
+function colours(classes: string): { text: Layer; bg?: Layer } {
+  const text = /(?:^|\s)text-([a-z]+(?:-[a-z]+)*(?:-\d+)?(?:\/\d+)?)(?=\s|$)/.exec(classes)?.[1];
+  if (!text) throw new Error(`No text colour in "${classes}"`);
+  return { text: layer(text), bg: fill(classes) };
+}
+const TONES = Object.keys(css.toneText) as Tone[];
 
 describe('contrast (dark mode, WCAG AA)', () => {
   it('reads the dark palette', () => {
-    expect(resolve('var(--bs-body-bg)', vars)).toBe('#0d1117');
-    expect(ratio('#ffffff', '#000000')).toBe(21);
+    expect(resolve('var(--background)')).toBe('oklch(0.145 0 0)');
+    expect(ratio(layer('white'), [layer('black')])).toBe(21);
   });
 
-  it('body, secondary and link text on every surface', () => {
+  it('body, muted and link text on every surface', () => {
     check(
       [
-        ...onSurfaces('body text', 'var(--bs-body-color)'),
-        ...onSurfaces('secondary text (hints, meta, table headers, placeholders)', 'var(--bs-secondary-color)'),
-        ...onSurfaces('link', 'var(--bs-link-color)'),
-        ...onSurfaces('hovered link', 'var(--bs-link-hover-color)'),
-        // .navbar: --bs-navbar-color is 65 % of the emphasis colour.
-        ['navbar link', 'rgba(255, 255, 255, 0.65)', 'var(--bs-tertiary-bg)'],
-        ['inline code', 'var(--bs-code-color)', 'var(--bs-body-bg)'],
+        ...onSurfaces('body text', layer('foreground')),
+        ...onSurfaces('muted text (hints, meta, table headers, placeholders)', layer('muted-foreground')),
+        ...onSurfaces('link', layer('link')),
+        ...onSurfaces('hovered link', layer('link-hover')),
       ],
       4.5,
     );
   });
 
-  it('every tone as text, as a badge, as an alert and as a scoreboard cell', () => {
+  it('every tone as text, as a fill, as a badge and as an alert', () => {
     check(
-      TONES.flatMap((tone): [string, string, string][] => [
-        ...onSurfaces(`${tone} text`, `var(--bs-${tone}-text-emphasis)`),
-        [`${tone} on its subtle fill`, `var(--bs-${tone}-text-emphasis)`, `var(--bs-${tone}-bg-subtle)`],
-      ]),
+      TONES.flatMap((tone): [string, Layer, Layer[]][] => {
+        const fill = colours(css.toneFill[tone]);
+        const badge = colours(css.badge[tone]);
+        const alert = colours(css.alert[tone]);
+        return [
+          ...onSurfaces(`${tone} text`, colours(css.toneText[tone]).text),
+          [`${tone} fill (scoreboard cell)`, fill.text, [layer('card'), ...(fill.bg ? [fill.bg] : [])]],
+          [`${tone} badge`, badge.text, [layer('card'), ...(badge.bg ? [badge.bg] : [])]],
+          [`${tone} alert`, alert.text, alert.bg ? [alert.bg] : []],
+        ];
+      }),
       4.5,
     );
   });
 
-  it('buttons in every state', () => {
-    const secondary = scoped(/\.oj-btn-secondary\s*\{/);
+  it('buttons, menus, tooltips and the own scoreboard row', () => {
     check(
       [
-        ['secondary button', 'var(--bs-btn-color)', 'var(--bs-body-bg)'],
-        ['secondary button in a card header', 'var(--bs-btn-color)', 'var(--bs-tertiary-bg)'],
-        ['secondary button, hover', 'var(--bs-btn-hover-color)', 'var(--bs-btn-hover-bg)'],
-        ['secondary button, active', 'var(--bs-btn-active-color)', 'var(--bs-btn-active-bg)'],
-      ],
-      4.5,
-      secondary,
-    );
-    const danger = scoped(/\.oj-btn-danger\s*\{/);
-    check(
-      [
-        ['danger button', 'var(--bs-btn-color)', 'var(--bs-body-bg)'],
-        // Hover and active fill with Bootstrap's danger red.
-        ['danger button, hover', 'var(--bs-btn-hover-color)', 'var(--bs-danger)'],
-      ],
-      4.5,
-      danger,
-    );
-    check(
-      [
-        ['primary button', 'var(--bs-white)', 'var(--bs-btn-bg)'],
-        ['primary button, hover', 'var(--bs-white)', 'var(--bs-btn-hover-bg)'],
-        ['primary button, active', 'var(--bs-white)', 'var(--bs-btn-active-bg)'],
-      ],
-      5,
-      scoped(/\.oj-btn-primary\s*\{/),
-    );
-    check(
-      [
-        ['dropdown item, highlighted', 'var(--bs-emphasis-color)', 'var(--bs-secondary-bg)'],
-        ['tooltip', 'var(--bs-body-bg)', 'var(--bs-emphasis-color)'],
-        ['own scoreboard row', 'var(--bs-body-color)', 'var(--bs-primary-bg-subtle)'],
+        ['primary button', layer('primary-foreground'), [layer('primary')]],
+        ['primary button, hover', layer('primary-foreground'), [layer('primary/80')]],
+        ['secondary (outline) button', layer('foreground'), [layer('input/30')]],
+        ['secondary (outline) button, hover', layer('foreground'), [layer('input/50')]],
+        ['danger button', layer('destructive'), [layer('destructive/20')]],
+        // Our hover (ui/classes.ts), lighter than shadcn's 30 %.
+        ['danger button, hover', layer('destructive'), [layer('destructive/25')]],
+        ['menu or select item, highlighted', layer('accent-foreground'), [layer('popover'), layer('accent')]],
+        ['menu item', layer('popover-foreground'), [layer('popover')]],
+        ['tooltip', layer('background'), [layer('foreground')]],
+        ['own scoreboard row', layer('foreground'), [layer('card'), fill(table.rowHighlight) ?? layer('card')]],
       ],
       4.5,
     );
   });
 
-  it('menus (Radix menus dressed as Bootstrap dropdowns)', () => {
-    const menu = scoped(/\.oj-pop\s*\{/);
+  it('control borders and the focus ring stand out from the page (non-text, 3 : 1)', () => {
     check(
       [
-        ['menu section header', 'var(--bs-dropdown-header-color)', 'var(--bs-body-bg)'],
-        ['menu item', 'var(--bs-body-color)', 'var(--bs-body-bg)'],
-      ],
-      4.5,
-      menu,
-    );
-  });
-
-  it('control borders stand out from the page (non-text, 3 : 1)', () => {
-    check(
-      [
-        ['input, select and checkbox border', 'var(--bs-gray-600)', 'var(--bs-body-bg)'],
-        ['secondary button border', 'var(--bs-btn-border-color)', 'var(--bs-body-bg)'],
-        ['focus ring colour', 'var(--bs-primary)', 'var(--bs-body-bg)'],
+        ['input, select and button border', layer('input'), []],
+        ['focus ring', layer('ring'), []],
       ],
       3,
-      scoped(/\.oj-btn-secondary\s*\{/),
     );
   });
 
   it('every verdict colour on every surface', () => {
-    const kinds = Object.keys(vars).filter((name) => name.startsWith('--oj-verdict-'));
+    const kinds = Object.keys(vars).filter((name) => name.startsWith('--verdict-'));
     expect(kinds).toHaveLength(7);
     check(
-      kinds.flatMap((kind) => onSurfaces(kind, `var(${kind})`)),
+      kinds.flatMap((kind) => onSurfaces(kind, layer(kind.slice(2)))),
       4.5,
     );
   });
 
   it('every syntax-highlighting colour on the code background', () => {
-    const code = scoped(/\.oj-code\s*\{/);
-    const tokens = Object.keys(code).filter((name) => name.startsWith('--shiki-') && name !== '--shiki-background');
+    const code = declarations(appCss, /\.oj-code\s*\{/);
+    const tokens = Object.entries(code).filter(
+      ([name]) => name.startsWith('--shiki-') && name !== '--shiki-background',
+    );
     expect(tokens.length).toBeGreaterThan(8);
     check(
-      tokens.map((token): [string, string, string] => [token, `var(${token})`, 'var(--bs-tertiary-bg)']),
+      tokens.map(([name, value]): [string, Layer, Layer[]] => [name, { colour: value }, [layer('card')]]),
       4.5,
-      code,
     );
   });
 });

@@ -14,8 +14,8 @@ import { verdictKind } from '../ui/index';
 
 const appCss = readFileSync(join(import.meta.dirname, 'app.css'), 'utf8');
 const colourOf = (kind: string) => {
-  const hex = new RegExp(`--oj-verdict-${kind}:\\s*(#[0-9a-f]{6})`, 'i').exec(appCss)?.[1];
-  if (!hex) throw new Error(`No colour for --oj-verdict-${kind}`);
+  const hex = new RegExp(`--verdict-${kind}:\\s*(#[0-9a-f]{6})`, 'i').exec(appCss)?.[1];
+  if (!hex) throw new Error(`No colour for --verdict-${kind}`);
   return hex;
 };
 
