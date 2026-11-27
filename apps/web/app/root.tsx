@@ -136,7 +136,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={200}>
+      <TooltipProvider delay={200}>
         <div className={shell.page}>
           <header className={shell.header}>
             <nav aria-label="Main" className={`${css.container} ${shell.nav}`}>

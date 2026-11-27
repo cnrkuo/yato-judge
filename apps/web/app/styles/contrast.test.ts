@@ -173,7 +173,7 @@ describe('contrast (dark mode, WCAG AA)', () => {
     );
   });
 
-  it('menus (Radix menus dressed as Bootstrap dropdowns)', () => {
+  it('menus (Base UI menus dressed as Bootstrap dropdowns)', () => {
     const menu = scoped(/\.oj-pop\s*\{/);
     check(
       [

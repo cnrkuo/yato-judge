@@ -54,7 +54,7 @@ describe('interface consistency', () => {
   it('prefixes every class of its own with oj- so it cannot collide with Bootstrap', () => {
     const css = read(join(appDir, 'styles/app.css')).replace(/\/\*[\s\S]*?\*\//g, '');
     const own = [...css.matchAll(/(?:^|[\s,>+~(])\.([a-zA-Z][\w-]*)/gm)].map(([, name = '']) => name);
-    // Bootstrap/Radix/Shiki/Temml hooks that app.css is allowed to refine.
+    // Bootstrap/Base UI/Shiki/Temml hooks that app.css is allowed to refine.
     const allowed = new Set(['dropdown-item', 'nav-link', 'line', 'math-display', 'temml-error']);
     expect(own.filter((name) => !name.startsWith('oj-') && !allowed.has(name))).toEqual([]);
   });
@@ -82,7 +82,7 @@ describe('interface consistency', () => {
     expect(offenders(sources, /rounded-(pill|circle|[3-5])\b/)).toEqual([]);
   });
 
-  it('does not load Bootstrap JavaScript (Radix provides the behaviour)', () => {
+  it('does not load Bootstrap JavaScript (Base UI provides the behaviour)', () => {
     expect(offenders(sources, /from ['"]bootstrap(?!\/dist\/css)|import ['"]bootstrap(?!\/dist\/css)/)).toEqual([]);
   });
 
@@ -98,8 +98,17 @@ describe('interface consistency', () => {
     expect(offenders(pages, /<(table|thead|tbody|tr|td|th)[\s>]/)).toEqual([]);
   });
 
-  it('uses the overlay wrappers instead of Radix or browser dialogs directly', () => {
-    expect(offenders(pages, /from ['"]radix-ui['"]|\b(confirm|alert)\(/)).toEqual([]);
+  it('builds overlays on Base UI, in ui/overlays.tsx only', () => {
+    const manifest = read(join(appDir, '..', 'package.json'));
+    expect(manifest).toMatch(/"@base-ui\/react": "\d/);
+    expect(manifest).not.toMatch(/radix/i);
+    expect(offenders(sources, /from ['"](radix-ui|@radix-ui\/)/)).toEqual([]);
+    const baseUi = sources.filter((path) => /from ['"]@base-ui\/react/.test(code(read(path)))).map(rel);
+    expect(baseUi).toEqual(['ui/overlays.tsx']);
+  });
+
+  it('uses the overlay wrappers instead of browser dialogs', () => {
+    expect(offenders(pages, /\b(confirm|alert)\(/)).toEqual([]);
     expect(offenders(pages, /from ['"]@tanstack\/react-table['"]/)).toEqual([]);
   });
 });
