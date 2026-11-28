@@ -26,7 +26,10 @@ function setup(waiting: { id: number; language: string }[], checker = '') {
   >(waiting.map((s) => [s.id, { ...s, problemId: 1, code: '', verdict: Verdict.WAIT, judgeId: null }]));
   const seen: { judgeId: number; languages?: readonly string[] }[] = [];
   /** Runs inside `claim`, after the row was claimed: lets a test act at that moment. */
-  const hooks: { afterClaim: () => void } = { afterClaim: () => undefined };
+  const hooks: { afterClaim: () => void; whileAssembling: () => void } = {
+    afterClaim: () => undefined,
+    whileAssembling: () => undefined,
+  };
 
   const submissions = {
     claim: async (id: number, judgeId: number, languages?: readonly string[]) => {
@@ -52,7 +55,10 @@ function setup(waiting: { id: number; language: string }[], checker = '') {
     touch: async (judgeId: number, languages?: readonly string[]) => void seen.push({ judgeId, languages }),
   } as unknown as JudgeRepository;
   const problems = {
-    findById: async () => ({ problem: { timeLimitMs: 1000, memoryLimitKb: 65536, checker } }),
+    findById: async () => {
+      hooks.whileAssembling();
+      return { problem: { timeLimitMs: 1000, memoryLimitKb: 65536, checker } };
+    },
     listTestcases: async () => [],
   } as unknown as ProblemRepository;
 
@@ -226,6 +232,15 @@ describe('JudgeService.fetch, waiting (long polling)', () => {
     const { service, rows, queue, hooks } = setup([{ id: 4, language: 'cpp' }]);
     const hangUp = new AbortController();
     hooks.afterClaim = () => hangUp.abort();
+    expect(await service.fetch(judge, ['cpp'], { waitSec: 20, signal: hangUp.signal })).toEqual({ task: null });
+    expect(rows.get(4)).toMatchObject({ verdict: Verdict.WAIT, judgeId: null });
+    expect(ids(queue)).toEqual([4]);
+  });
+
+  it('gives a submission back when the judge hung up while its task was being put together', async () => {
+    const { service, rows, queue, hooks } = setup([{ id: 4, language: 'cpp' }]);
+    const hangUp = new AbortController();
+    hooks.whileAssembling = () => hangUp.abort();
     expect(await service.fetch(judge, ['cpp'], { waitSec: 20, signal: hangUp.signal })).toEqual({ task: null });
     expect(rows.get(4)).toMatchObject({ verdict: Verdict.WAIT, judgeId: null });
     expect(ids(queue)).toEqual([4]);

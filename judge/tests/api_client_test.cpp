@@ -5,6 +5,12 @@
 #include <string>
 #include <thread>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
@@ -103,4 +109,31 @@ TEST_CASE("cancelling fetches leaves other calls alone") {
   client.cancel_fetches();
   client.report(judge::Report{7, std::nullopt, "", {}});
   CHECK(reports == 1);
+}
+
+// cancel_fetches() may run while cpp-httplib has created a connection's
+// socket but not yet connected it; shutdown(2) then reports ENOTCONN. The
+// client relies on the socket being marked anyway, so the request fails as
+// soon as it is sent instead of waiting out a long poll.
+TEST_CASE("a socket shut before it connects fails the request at once") {
+  const int server = ::socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  socklen_t length = sizeof address;
+  REQUIRE(::bind(server, reinterpret_cast<sockaddr*>(&address), sizeof address) == 0);
+  REQUIRE(::listen(server, 1) == 0);
+  REQUIRE(::getsockname(server, reinterpret_cast<sockaddr*>(&address), &length) == 0);
+
+  const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+  ::shutdown(sock, SHUT_RDWR);
+  REQUIRE(::connect(sock, reinterpret_cast<const sockaddr*>(&address), sizeof address) == 0);
+  const char request[] = "POST /judge/fetch HTTP/1.1\r\n\r\n";
+  CHECK(::send(sock, request, sizeof request - 1, MSG_NOSIGNAL) < 0);
+  pollfd readable{sock, POLLIN, 0};
+  CHECK(::poll(&readable, 1, 1000) == 1);  // at once, not after the timeout
+  char byte = 0;
+  CHECK(::recv(sock, &byte, 1, 0) == 0);
+  ::close(sock);
+  ::close(server);
 }

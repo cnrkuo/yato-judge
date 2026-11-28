@@ -84,14 +84,16 @@ export class JudgeService {
       try {
         const submission = await this.claimNext(judge, languages);
         if (submission) {
-          // The judge hung up while the claim was being made: nobody would
-          // judge it before the claim times out, so give it back now.
+          const task = await this.taskOf(submission);
+          // The judge hung up while the claim was being made or its task put
+          // together: nobody would judge it before the claim times out, so
+          // give it back now.
           if (signal?.aborted) {
             await this.giveBack(submission, judge);
             return { task: null };
           }
           this.events.changed(submission.id);
-          return { task: await this.taskOf(submission) };
+          return { task };
         }
         const left = deadline - Date.now();
         if (left <= 0 || this.queue.closed) return { task: null };
