@@ -8,6 +8,7 @@ import {
   UnauthorizedError,
 } from '../../common/errors.js';
 import { config } from '../../config.js';
+import type { JudgeQueue } from '../../messaging/judge-queue.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import { Queue } from '../../messaging/message-broker.js';
 import { actor, admin, fake, guest, localEvents, user } from '../../testing/fixtures.js';
@@ -112,6 +113,9 @@ function service(
       },
     }),
     localEvents(),
+    fake<JudgeQueue>({
+      push: async (submissionId: number) => void published.push([Queue.JUDGE, { submissionId }]),
+    }),
   );
   return { submissions, published, filters, slot };
 }
@@ -397,6 +401,7 @@ describe('SubmissionService.watch', () => {
       fake<ContestRepository>({}),
       fake<MessageBroker>({}),
       events,
+      fake<JudgeQueue>({}),
     );
     const judged = () => {
       Object.assign(state, { verdict: Verdict.AC, results: [result(11, 0), result(12, 1)], judgedAt: new Date(1000) });

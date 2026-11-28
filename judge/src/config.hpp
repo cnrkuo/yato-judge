@@ -23,7 +23,16 @@ struct Config {
   std::string work_dir = "/var/lib/yato-judge/work";
   /** Content-addressed testdata cache. */
   std::string cache_dir = "/var/lib/yato-judge/cache";
-  /** Delay between polls while the queue is empty. */
+  /**
+   * Long polling: how long the API may hold a fetch open while no submission
+   * is waiting (it holds one 30 s at most), answering as soon as one is
+   * queued. 0 asks without waiting, every `poll_interval_ms`.
+   */
+  int fetch_wait_sec = 25;
+  /**
+   * Least time between two fetches that found nothing: the polling interval
+   * when `fetch_wait_sec` is 0, or with an API too old to hold a fetch.
+   */
   int poll_interval_ms = 1000;
 
   /** Identity submissions run as when the judge itself runs as root. */

@@ -1,7 +1,10 @@
 #include "api_client.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
+
+#include <sys/socket.h>
 
 #include <httplib.h>
 #include <nlohmann/json.hpp>
@@ -26,7 +29,8 @@ std::string dump(const json& value) {
 
 }  // namespace
 
-ApiClient::ApiClient(const std::string& base_url, const std::string& token) {
+ApiClient::ApiClient(const std::string& base_url, const std::string& token, int fetch_wait_sec)
+    : fetch_wait_sec_(std::max(fetch_wait_sec, 0)) {
   // Split "scheme://host[:port]/optional/prefix" into origin and path prefix.
   const std::size_t scheme_end = base_url.find("://");
   if (scheme_end == std::string::npos) throw ApiError("api_url must start with http:// or https://");
@@ -38,9 +42,15 @@ ApiClient::ApiClient(const std::string& base_url, const std::string& token) {
   if (!http_->is_valid()) throw ApiError("cannot create an HTTP client for " + origin + " (HTTPS needs OpenSSL)");
   http_->set_bearer_token_auth(token);
   http_->set_connection_timeout(10);
-  http_->set_read_timeout(60);
+  // A held fetch must outlast its wait, with room for a slow network.
+  http_->set_read_timeout(std::max(60, fetch_wait_sec_ + 30));
   http_->set_write_timeout(60);
   http_->set_keep_alive(true);
+  // Remember each connection's socket, so cancel_fetches() can shut it.
+  http_->set_socket_options([this](socket_t sock) {
+    httplib::default_socket_options(sock);
+    socket_.store(sock);
+  });
 }
 
 ApiClient::~ApiClient() = default;
@@ -56,9 +66,27 @@ std::string ApiClient::post(const std::string& procedure, const std::string& bod
   return std::move(response->body);
 }
 
+void ApiClient::cancel_fetches() noexcept {
+  cancelled_.store(true);
+  if (!fetching_.load()) return;
+  // The blocked read sees the connection end and the request fails.
+  if (const int sock = socket_.load(); sock >= 0) ::shutdown(sock, SHUT_RDWR);
+}
+
 std::optional<Task> ApiClient::fetch(const std::vector<std::string>& languages) {
+  json request = {{"languages", languages}};
+  if (fetch_wait_sec_ > 0) request["waitSec"] = fetch_wait_sec_;
+  struct Fetching {
+    std::atomic<bool>& flag;
+    explicit Fetching(std::atomic<bool>& fetching) : flag(fetching) { flag.store(true); }
+    Fetching(const Fetching&) = delete;
+    Fetching& operator=(const Fetching&) = delete;
+    ~Fetching() { flag.store(false); }
+  } const fetching(fetching_);
+  // Checked only now that `fetching_` is set: a cancel in between is not lost.
+  if (cancelled_.load()) throw ApiError("fetch cancelled");
   try {
-    const json reply = json::parse(post("/judge/fetch", dump({{"languages", languages}})));
+    const json reply = json::parse(post("/judge/fetch", dump(request)));
     const json& item = reply.at("task");
     if (item.is_null()) return std::nullopt;
 

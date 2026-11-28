@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WriteCommand } from '../../messaging/commands.js';
+import type { JudgeQueue } from '../../messaging/judge-queue.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import { Queue } from '../../messaging/message-broker.js';
 import { fake } from '../../testing/fixtures.js';
@@ -20,6 +21,7 @@ function setup() {
     }),
     fake<SubmissionRepository>({ insert: async (row: unknown) => void log.push(['insert', row]) }),
     fake<SubmissionResultService>({ record: async (...args: unknown[]) => void log.push(['record', ...args]) }),
+    fake<JudgeQueue>({ push: async (...args: unknown[]) => void log.push(['queue', ...args]) }),
   );
   consumer.onModuleInit();
   return { log, apply: (command: WriteCommand | { type: string }) => handler(command) };
@@ -46,7 +48,8 @@ describe('WriteQueueConsumer', () => {
         'insert',
         { id: 7, problemId: 1, userId: 2, language: 'c', code: 'x', createdAt: new Date('2026-01-01T00:00:00Z') },
       ],
-      ['publish', Queue.JUDGE, { submissionId: 7 }],
+      // With its language, so only judges that can run C are woken.
+      ['queue', 7, 'c'],
     ]);
   });
 

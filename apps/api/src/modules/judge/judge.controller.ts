@@ -15,8 +15,9 @@ export class JudgeController {
   @Implement(contract.judge)
   routes(@BearerToken() token: string | undefined) {
     return {
-      fetch: os.fetch.handler(async ({ input }) =>
-        this.judge.fetch(await this.judge.authenticate(token), input.languages),
+      // `signal` aborts when the judge hangs up, so a held fetch stops waiting.
+      fetch: os.fetch.handler(async ({ input, signal }) =>
+        this.judge.fetch(await this.judge.authenticate(token), input.languages, { waitSec: input.waitSec, signal }),
       ),
       testdata: os.testdata.handler(async ({ input }) => {
         await this.judge.authenticate(token);

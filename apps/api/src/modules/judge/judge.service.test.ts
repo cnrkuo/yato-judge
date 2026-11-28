@@ -1,11 +1,11 @@
 import { Verdict } from '@yato/contract';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sha256 } from '../../common/crypto.js';
 import { UnauthorizedError } from '../../common/errors.js';
 import type { JudgeTaskMessage } from '../../messaging/commands.js';
 import type { MessageBroker } from '../../messaging/message-broker.js';
 import type { StorageService } from '../../storage/storage.service.js';
-import { localEvents } from '../../testing/fixtures.js';
+import { localEvents, localJudgeQueue } from '../../testing/fixtures.js';
 import type { ProblemRepository } from '../problem/problem.repository.js';
 import type { SubmissionBusEvent } from '../submission/submission.events.js';
 import type { SubmissionRepository } from '../submission/submission.repository.js';
@@ -15,22 +15,38 @@ import { JudgeService } from './judge.service.js';
 /** In-memory stand-ins for the queue and the tables `fetch` touches. */
 function setup(waiting: { id: number; language: string }[], checker = '') {
   const events = localEvents();
-  const queue: JudgeTaskMessage[] = waiting.map(({ id }) => ({ submissionId: id }));
-  const rows = new Map(waiting.map((s) => [s.id, { ...s, problemId: 1, code: '', verdict: Verdict.WAIT as number }]));
+  const {
+    queue: judgeQueue,
+    tasks: queue,
+    announced,
+  } = localJudgeQueue(waiting.map(({ id }) => ({ submissionId: id })));
+  const rows = new Map<
+    number,
+    { id: number; language: string; problemId: number; code: string; verdict: number; judgeId: number | null }
+  >(waiting.map((s) => [s.id, { ...s, problemId: 1, code: '', verdict: Verdict.WAIT, judgeId: null }]));
   const seen: { judgeId: number; languages?: readonly string[] }[] = [];
+  /** Runs inside `claim`, after the row was claimed: lets a test act at that moment. */
+  const hooks: { afterClaim: () => void } = { afterClaim: () => undefined };
 
-  const broker = {
-    pull: async () => queue.shift(),
-    publish: async (_queue: string, task: JudgeTaskMessage) => void queue.push(task),
-  } as unknown as MessageBroker;
   const submissions = {
-    claim: async (id: number, _judge: number, languages?: readonly string[]) => {
+    claim: async (id: number, judgeId: number, languages?: readonly string[]) => {
       const row = rows.get(id);
       if (!row || row.verdict !== Verdict.WAIT || (languages && !languages.includes(row.language))) return undefined;
-      row.verdict = Verdict.JUDGING;
+      Object.assign(row, { verdict: Verdict.JUDGING, judgeId });
+      hooks.afterClaim();
       return row;
     },
-    isWaiting: async (id: number) => rows.get(id)?.verdict === Verdict.WAIT,
+    waitingLanguage: async (id: number) => {
+      const row = rows.get(id);
+      return row?.verdict === Verdict.WAIT ? row.language : undefined;
+    },
+    release: async (id: number, judgeId: number) => {
+      const row = rows.get(id);
+      if (row?.verdict !== Verdict.JUDGING || row.judgeId !== judgeId) return false;
+      Object.assign(row, { verdict: Verdict.WAIT, judgeId: null });
+      return true;
+    },
+    findById: async (id: number) => rows.get(id),
   } as unknown as SubmissionRepository;
   const judges = {
     touch: async (judgeId: number, languages?: readonly string[]) => void seen.push({ judgeId, languages }),
@@ -40,15 +56,22 @@ function setup(waiting: { id: number; language: string }[], checker = '') {
     listTestcases: async () => [],
   } as unknown as ProblemRepository;
 
-  const submissionsWithLookup = {
-    ...submissions,
-    findById: async (id: number) => {
-      const row = rows.get(id);
-      return row && { ...row, judgeId: row.verdict === Verdict.JUDGING ? judge.id : null };
-    },
-  } as unknown as SubmissionRepository;
-  const service = new JudgeService(judges, submissionsWithLookup, problems, {} as StorageService, broker, events);
-  return { service, queue, seen, events };
+  const service = new JudgeService(
+    judges,
+    submissions,
+    problems,
+    {} as StorageService,
+    {} as MessageBroker,
+    events,
+    judgeQueue,
+  );
+  /** A new submission, written and queued as the write-queue consumer does. */
+  const submit = async (id: number, language: string, { announce = true } = {}) => {
+    rows.set(id, { id, language, problemId: 1, code: '', verdict: Verdict.WAIT, judgeId: null });
+    if (announce) await judgeQueue.push(id, language);
+    else queue.push({ submissionId: id });
+  };
+  return { service, queue, seen, events, rows, submit, judgeQueue, announced, hooks };
 }
 
 const judge = { id: 7 } as JudgeRow;
@@ -106,6 +129,137 @@ describe('JudgeService.fetch', () => {
   });
 });
 
+describe('JudgeService.fetch, waiting (long polling)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Starts a fetch and reports whether, and when, it has answered. */
+  function start(promise: Promise<{ task: { submissionId: number } | null }>) {
+    const began = Date.now();
+    const state = { answered: false, afterMs: -1 };
+    const done = promise.then((value) => {
+      Object.assign(state, { answered: true, afterMs: Date.now() - began });
+      return value;
+    });
+    return { state, done };
+  }
+
+  it('hands out a submission queued while the judge waits, as soon as it is queued', async () => {
+    const { service, submit } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 20 }));
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(fetch.state.answered).toBe(false);
+    await submit(5, 'cpp');
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await fetch.done).task?.submissionId).toBe(5);
+    expect(fetch.state.afterMs).toBe(1500);
+  });
+
+  it('answers empty once the wait is over', async () => {
+    const { service } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 12 }));
+    await vi.advanceTimersByTimeAsync(11_999);
+    expect(fetch.state.answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await fetch.done).toEqual({ task: null });
+  });
+
+  it('answers at once without waitSec, as before', async () => {
+    const { service } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch.state).toEqual({ answered: true, afterMs: 0 });
+  });
+
+  it('is not woken by submissions in languages its judge cannot run', async () => {
+    const { service, submit, rows } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 20 }));
+    await submit(6, 'py3');
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(fetch.state.answered).toBe(false);
+    // Its next look at the queue skips the Python submission and keeps waiting.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetch.state.answered).toBe(false);
+    expect(rows.get(6)?.verdict).toBe(Verdict.WAIT);
+    await submit(7, 'cpp');
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await fetch.done).task?.submissionId).toBe(7);
+  });
+
+  it('announces a skipped submission only to judges that can run it, so judges cannot wake each other in turn', async () => {
+    const { service, submit, announced } = setup([]);
+    await submit(6, 'py3');
+    expect((await service.fetch(judge, ['cpp'])).task).toBeNull();
+    expect(announced.every((key) => key === 'judge.queued.py3')).toBe(true);
+  });
+
+  it('still finds a submission whose announcement was lost, at its next look', async () => {
+    const { service, submit } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 20 }));
+    await vi.advanceTimersByTimeAsync(1000);
+    await submit(8, 'cpp', { announce: false });
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(fetch.state.answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await fetch.done).task?.submissionId).toBe(8);
+    expect(fetch.state.afterMs).toBe(5000);
+  });
+
+  it('stops waiting when the judge hangs up, and claims nothing for it afterwards', async () => {
+    const { service, submit, rows } = setup([]);
+    const hangUp = new AbortController();
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 20, signal: hangUp.signal }));
+    await vi.advanceTimersByTimeAsync(1000);
+    hangUp.abort();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await fetch.done).toEqual({ task: null });
+    await submit(9, 'cpp');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rows.get(9)?.verdict).toBe(Verdict.WAIT);
+  });
+
+  it('gives a submission back when the judge hung up while it was being claimed', async () => {
+    const { service, rows, queue, hooks } = setup([{ id: 4, language: 'cpp' }]);
+    const hangUp = new AbortController();
+    hooks.afterClaim = () => hangUp.abort();
+    expect(await service.fetch(judge, ['cpp'], { waitSec: 20, signal: hangUp.signal })).toEqual({ task: null });
+    expect(rows.get(4)).toMatchObject({ verdict: Verdict.WAIT, judgeId: null });
+    expect(ids(queue)).toEqual([4]);
+  });
+
+  it('answers at once when the API shuts down, and does not wait afterwards', async () => {
+    const { service, judgeQueue } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 20 }));
+    await vi.advanceTimersByTimeAsync(1000);
+    judgeQueue.beforeApplicationShutdown();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch.state).toEqual({ answered: true, afterMs: 1000 });
+    const late = start(service.fetch(judge, ['cpp'], { waitSec: 20 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(late.state).toEqual({ answered: true, afterMs: 0 });
+  });
+
+  it('holds a fetch 30 seconds at most', async () => {
+    const { service } = setup([]);
+    const fetch = start(service.fetch(judge, undefined, { waitSec: 3600 }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetch.state).toEqual({ answered: true, afterMs: 30_000 });
+  });
+
+  it('keeps a waiting judge marked as seen, so the admin page shows it online', async () => {
+    const { service, seen } = setup([]);
+    const fetch = start(service.fetch(judge, ['cpp'], { waitSec: 30 }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await fetch.done;
+    // At 0, 10, 20 and 30 seconds; the admin page calls a judge offline after 30.
+    expect(seen).toHaveLength(4);
+  });
+});
+
 describe('JudgeService.progress', () => {
   const result = { testcaseId: 4, ordinal: 0, verdict: Verdict.AC, timeMs: 3, memoryKb: 10, score: 1, message: '' };
   const heard = (events: ReturnType<typeof localEvents>, id: number) => {
@@ -144,6 +298,7 @@ describe('JudgeService.authenticate', () => {
       {} as StorageService,
       {} as MessageBroker,
       localEvents(),
+      localJudgeQueue().queue,
     );
 
   it('accepts an enabled judge and refuses unknown, disabled or missing tokens', async () => {

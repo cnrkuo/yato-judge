@@ -81,6 +81,7 @@ endif()
 enable_testing()
 add_executable(judge_tests
   tests/main.cpp
+  tests/api_client_test.cpp
   tests/cgroup_test.cpp
   tests/checker_test.cpp
   tests/config_test.cpp

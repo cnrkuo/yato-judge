@@ -201,13 +201,26 @@ export class SubmissionRepository {
     return row;
   }
 
-  /** Whether a submission is still waiting for a judge. */
-  async isWaiting(id: number): Promise<boolean> {
+  /** The language of a submission still waiting for a judge; `undefined` once it is not waiting. */
+  async waitingLanguage(id: number): Promise<string | undefined> {
     const [row] = await this.db
-      .select({ id: submissions.id })
+      .select({ language: submissions.language })
       .from(submissions)
       .where(and(eq(submissions.id, id), eq(submissions.verdict, Verdict.WAIT)));
-    return row !== undefined;
+    return row?.language;
+  }
+
+  /**
+   * Hands a claimed submission back: waiting again, as long as `judgeId`
+   * still holds the claim. Returns whether it did.
+   */
+  async release(id: number, judgeId: number): Promise<boolean> {
+    const rows = await this.db
+      .update(submissions)
+      .set({ verdict: Verdict.WAIT, judgeId: null, judgeStartedAt: null })
+      .where(and(eq(submissions.id, id), eq(submissions.judgeId, judgeId), eq(submissions.verdict, Verdict.JUDGING)))
+      .returning({ id: submissions.id });
+    return rows.length > 0;
   }
 
   /** Puts submissions whose judge went silent back to waiting; returns their ids. */

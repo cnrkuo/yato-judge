@@ -134,9 +134,19 @@ const judge = {
    * Claims the next waiting submission in one of `languages` (the languages
    * this judge has a working toolchain for), or returns `{ task: null }`.
    * Without `languages`, any submission may be handed out.
+   *
+   * With `waitSec`, an empty queue does not answer at once: the request is
+   * held open until a submission arrives or the seconds are up (long
+   * polling; the API holds it 30 s at most). Without it, or with 0, the
+   * answer is immediate.
    */
   fetch: base
-    .input(type({ 'languages?': s.LanguageSchema.array().atMostLength(64) }))
+    .input(
+      type({
+        'languages?': s.LanguageSchema.array().atMostLength(64),
+        'waitSec?': 'number.integer >= 0',
+      }),
+    )
     .output(type({ task: s.JudgeTaskSchema.or('null') })),
   /** Raw bytes of one testcase file. */
   testdata: base.input(type({ testcaseId: 'number.integer', kind: "'input' | 'output'" })).output(s.FileSchema),

@@ -1,10 +1,13 @@
 // yato-judge — judge machine daemon for YATO Judge.
 //
-// Polls the API for queued submissions, judges them in a sandbox and reports
-// the per-testcase results. Any number of judges can serve one API; the
-// queue hands each submission to exactly one of them.
+// Asks the API for queued submissions (long polling: the API holds the
+// request until one arrives), judges them in a sandbox and reports the
+// per-testcase results. Any number of judges can serve one API; the queue
+// hands each submission to exactly one of them.
 
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -29,9 +32,33 @@
 namespace {
 
 volatile std::sig_atomic_t g_stop = 0;
+/** The client a held fetch runs on, while there is one. */
+std::atomic<judge::ApiClient*> g_api{nullptr};
+static_assert(std::atomic<judge::ApiClient*>::is_always_lock_free, "read in a signal handler");
 
 void request_stop(int /*unused*/) {
+  // Whatever the interrupted code was about to read from errno survives.
+  const int saved_errno = errno;
   g_stop = 1;
+  // A fetch the API is holding open would otherwise keep the judge up to
+  // fetch_wait_sec; a submission being judged is still finished and reported.
+  if (judge::ApiClient* api = g_api.load()) api->cancel_fetches();
+  errno = saved_errno;
+}
+
+/** Publishes `api` to the signal handler for as long as it exists. */
+class SignalTarget {
+ public:
+  explicit SignalTarget(judge::ApiClient& api) { g_api.store(&api); }
+  SignalTarget(const SignalTarget&) = delete;
+  SignalTarget& operator=(const SignalTarget&) = delete;
+  ~SignalTarget() { g_api.store(nullptr); }
+};
+
+/** Milliseconds since `since`. */
+int elapsed_ms(std::chrono::steady_clock::time_point since) {
+  return static_cast<int>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - since).count());
 }
 
 /** Sleeps in short slices so a termination signal is honoured promptly. */
@@ -205,7 +232,8 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, request_stop);
     std::signal(SIGPIPE, SIG_IGN);
 
-    judge::ApiClient api(config.api_url, config.token);
+    judge::ApiClient api(config.api_url, config.token, config.fetch_wait_sec);
+    const SignalTarget signal_target(api);
     judge::Runner runner(config, api);
     const std::vector<std::string> languages = working_languages(config, runner);
     if (languages.empty()) {
@@ -216,14 +244,20 @@ int main(int argc, char** argv) {
     if (!fs::is_regular_file(config.testlib_path)) {
       judge::log("WARN", "no testlib.h at " + config.testlib_path + "; checkers that include it will not compile");
     }
-    judge::log("INFO", "judging for " + config.api_url);
+    judge::log("INFO", config.fetch_wait_sec > 0 ? judge::format("judging for %s, each fetch waiting up to %d s",
+                                                                 config.api_url.c_str(), config.fetch_wait_sec)
+                                                 : "judging for " + config.api_url);
 
     while (g_stop == 0) {
       try {
+        const auto asked = std::chrono::steady_clock::now();
         const auto task = api.fetch(languages);
         if (!task) {
           if (once) break;
-          idle(config.poll_interval_ms);
+          // A long poll has already waited. An API that answered at once
+          // (an older one, or one shutting down) is asked again only after
+          // the poll interval.
+          idle(config.poll_interval_ms - elapsed_ms(asked));
           continue;
         }
         judge::log("INFO", judge::format("submission %d (%s, %zu testcases)", task->submission_id,
@@ -252,6 +286,8 @@ int main(int argc, char** argv) {
         api.report(report);
         if (once) break;
       } catch (const judge::ApiError& error) {
+        // A fetch cut short by SIGTERM/SIGINT: stopping, not a failure.
+        if (g_stop != 0) break;
         judge::log("ERROR", error.what());
         if (once) return 1;
         idle(3000);

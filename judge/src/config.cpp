@@ -35,6 +35,7 @@ void apply_file(const nlohmann::json& json, Config& config) {
   read("token", config.token);
   read("work_dir", config.work_dir);
   read("cache_dir", config.cache_dir);
+  read("fetch_wait_sec", config.fetch_wait_sec);
   read("poll_interval_ms", config.poll_interval_ms);
   read("run_uid", config.run_uid);
   read("run_gid", config.run_gid);
@@ -79,6 +80,7 @@ Config load_config(const std::string& path) {
   if (const char* token = std::getenv("YATO_JUDGE_TOKEN"); token && *token != '\0') config.token = token;
 
   if (config.token.empty()) throw std::runtime_error("no judge token configured (\"token\" or YATO_JUDGE_TOKEN)");
+  if (config.fetch_wait_sec < 0) throw std::runtime_error("fetch_wait_sec must be 0 or more");
   while (!config.api_url.empty() && config.api_url.back() == '/') config.api_url.pop_back();
   config.work_dir = std::filesystem::absolute(config.work_dir).string();
   config.cache_dir = std::filesystem::absolute(config.cache_dir).string();
