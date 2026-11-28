@@ -50,6 +50,11 @@ ApiClient::ApiClient(const std::string& base_url, const std::string& token, int 
   http_->set_socket_options([this](socket_t sock) {
     httplib::default_socket_options(sock);
     socket_.store(sock);
+    // A cancel that came while this connection was being opened shut the
+    // previous socket, not this one. Shut it here: it is not connected yet,
+    // but shutdown(2) still marks it, so the request fails once it is sent.
+    // Only during a fetch: a report must still get through.
+    if (fetching_.load() && cancelled_.load()) ::shutdown(sock, SHUT_RDWR);
   });
 }
 
