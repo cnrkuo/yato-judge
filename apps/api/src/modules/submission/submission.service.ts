@@ -4,7 +4,8 @@ import { type Actor, isAdmin, requireAdmin, requireUser } from '../../common/act
 import { ForbiddenError, NotFoundError, TooManyRequestsError } from '../../common/errors.js';
 import { type PageInput, pageOf } from '../../common/pagination.js';
 import { config } from '../../config.js';
-import type { JudgeTaskMessage, WriteCommand } from '../../messaging/commands.js';
+import type { WriteCommand } from '../../messaging/commands.js';
+import { JudgeQueue } from '../../messaging/judge-queue.js';
 import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { ContestRepository } from '../contest/contest.repository.js';
 import { ProblemRepository } from '../problem/problem.repository.js';
@@ -67,6 +68,7 @@ export class SubmissionService {
     private readonly contests: ContestRepository,
     private readonly broker: MessageBroker,
     private readonly events: SubmissionEvents,
+    private readonly judgeQueue: JudgeQueue,
   ) {}
 
   /**
@@ -219,7 +221,7 @@ export class SubmissionService {
 
   private async enqueue(ids: number[]): Promise<void> {
     for (const submissionId of ids) {
-      await this.broker.publish(Queue.JUDGE, { submissionId } satisfies JudgeTaskMessage);
+      await this.judgeQueue.push(submissionId);
       this.events.changed(submissionId);
     }
   }

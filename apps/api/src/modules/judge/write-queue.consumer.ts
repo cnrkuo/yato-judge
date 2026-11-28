@@ -1,6 +1,7 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { config } from '../../config.js';
-import type { JudgeTaskMessage, WriteCommand } from '../../messaging/commands.js';
+import type { WriteCommand } from '../../messaging/commands.js';
+import { JudgeQueue } from '../../messaging/judge-queue.js';
 import { MessageBroker, Queue } from '../../messaging/message-broker.js';
 import { SubmissionResultService } from '../submission/result.service.js';
 import { SubmissionRepository } from '../submission/submission.repository.js';
@@ -22,6 +23,7 @@ export class WriteQueueConsumer implements OnModuleInit {
     private readonly broker: MessageBroker,
     private readonly submissions: SubmissionRepository,
     private readonly results: SubmissionResultService,
+    private readonly judgeQueue: JudgeQueue,
   ) {}
 
   onModuleInit(): void {
@@ -34,7 +36,7 @@ export class WriteQueueConsumer implements OnModuleInit {
         const { type: _, createdAt, ...row } = command;
         await this.submissions.insert({ ...row, createdAt: new Date(createdAt) });
         // Only now that the row exists may a judge pick it up.
-        await this.broker.publish(Queue.JUDGE, { submissionId: command.id } satisfies JudgeTaskMessage);
+        await this.judgeQueue.push(command.id, command.language);
         return;
       }
       case 'submission.result':

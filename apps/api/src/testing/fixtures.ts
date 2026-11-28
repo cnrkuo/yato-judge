@@ -1,6 +1,8 @@
 import { UserLevel } from '@yato/contract';
 import { type Actor, GUEST } from '../common/actor.js';
-import type { MessageBroker } from '../messaging/message-broker.js';
+import type { JudgeTaskMessage } from '../messaging/commands.js';
+import { JudgeQueue } from '../messaging/judge-queue.js';
+import type { EventHandler, MessageBroker } from '../messaging/message-broker.js';
 import { type SubmissionBusEvent, SubmissionEvents } from '../modules/submission/submission.events.js';
 
 /** Test-only helpers. Not part of the build (tsconfig.build.json). */
@@ -44,4 +46,30 @@ export function localEvents(): SubmissionEvents {
     }),
   );
   return events;
+}
+
+/**
+ * A `JudgeQueue` over an in-memory array instead of RabbitMQ. What it
+ * announces comes straight back to it, as it would from the exchange, and is
+ * also kept in `announced`.
+ */
+export function localJudgeQueue(tasks: JudgeTaskMessage[] = []) {
+  let hear: EventHandler = () => undefined;
+  const announced: string[] = [];
+  const queue = new JudgeQueue(
+    fake<MessageBroker>({
+      publish: async (_queue: string, task: JudgeTaskMessage) => void tasks.push(task),
+      pull: async () => tasks.shift(),
+      depth: async () => tasks.length,
+      announce: (key: string) => {
+        announced.push(key);
+        hear(key, {});
+      },
+      subscribe: (_pattern: string, handler: EventHandler) => {
+        hear = handler;
+      },
+    }),
+  );
+  queue.onModuleInit();
+  return { queue, tasks, announced };
 }

@@ -1,7 +1,6 @@
 import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { config } from '../../config.js';
-import type { JudgeTaskMessage } from '../../messaging/commands.js';
-import { MessageBroker, Queue } from '../../messaging/message-broker.js';
+import { JudgeQueue } from '../../messaging/judge-queue.js';
 import { SubmissionEvents } from '../submission/submission.events.js';
 import { SubmissionRepository } from '../submission/submission.repository.js';
 
@@ -25,7 +24,7 @@ export class JudgeSweeper implements OnModuleInit, OnApplicationShutdown {
   private timer?: NodeJS.Timeout;
 
   constructor(
-    private readonly broker: MessageBroker,
+    private readonly queue: JudgeQueue,
     private readonly submissions: SubmissionRepository,
     private readonly events: SubmissionEvents,
   ) {}
@@ -44,12 +43,12 @@ export class JudgeSweeper implements OnModuleInit, OnApplicationShutdown {
       const stale = await this.submissions.releaseStale(new Date(Date.now() - config.judgeTimeoutSec * 1000));
       for (const id of stale) this.events.changed(id);
       let orphans: number[] = [];
-      if ((await this.broker.depth(Queue.JUDGE)) === 0) {
+      if ((await this.queue.depth()) === 0) {
         orphans = await this.submissions.waitingIds(new Date(Date.now() - ORPHAN_GRACE_MS), 1000);
       }
       const ids = [...new Set([...stale, ...orphans])].sort((a, b) => a - b);
       for (const submissionId of ids) {
-        await this.broker.publish(Queue.JUDGE, { submissionId } satisfies JudgeTaskMessage);
+        await this.queue.push(submissionId);
       }
       if (ids.length > 0) this.logger.warn(`Re-queued ${ids.length} submission(s) for judging`);
     } catch (error) {

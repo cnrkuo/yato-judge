@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -72,11 +73,29 @@ class ApiError : public std::runtime_error {
  */
 class ApiClient {
  public:
-  ApiClient(const std::string& base_url, const std::string& token);
+  /**
+   * `fetch_wait_sec` is how long the API may hold one fetch open while no
+   * submission is waiting (long polling); 0 asks without waiting.
+   */
+  ApiClient(const std::string& base_url, const std::string& token, int fetch_wait_sec = 0);
   ~ApiClient();
+  ApiClient(const ApiClient&) = delete;
+  ApiClient& operator=(const ApiClient&) = delete;
 
-  /** Claims the next queued submission in one of `languages`, if any. */
+  /**
+   * Claims the next queued submission in one of `languages`, if any. When
+   * long polling, the API answers as soon as one is queued, or empty once
+   * `fetch_wait_sec` is up.
+   */
   std::optional<Task> fetch(const std::vector<std::string>& languages);
+  /**
+   * Makes the fetch in progress, and every later one, fail with ApiError at
+   * once, so a judge that is stopping need not wait out a long poll. Never
+   * interrupts the other calls: a report in flight still gets through.
+   * Async-signal-safe (atomics and shutdown(2) only): a signal handler may
+   * call it.
+   */
+  void cancel_fetches() noexcept;
   /** Downloads one testcase file ("input" or "output") to `destination`. */
   void download_testdata(int testcase_id, const std::string& kind, const std::string& destination);
   /**
@@ -91,6 +110,13 @@ class ApiClient {
 
   std::unique_ptr<httplib::Client> http_;
   std::string base_path_;
+  int fetch_wait_sec_ = 0;
+  /** The socket of the connection to the API, as last opened. */
+  std::atomic<int> socket_{-1};
+  std::atomic<bool> fetching_{false};
+  std::atomic<bool> cancelled_{false};
+  static_assert(std::atomic<int>::is_always_lock_free && std::atomic<bool>::is_always_lock_free,
+                "cancel_fetches() must be async-signal-safe");
 };
 
 }  // namespace judge

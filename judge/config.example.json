@@ -7,6 +7,11 @@
 
   "work_dir": "/var/lib/yato-judge/work",
   "cache_dir": "/var/lib/yato-judge/cache",
+  // Long polling: the API holds a fetch open up to this many seconds (30 at
+  // most) and answers as soon as a submission is queued. 0 asks without
+  // waiting, every poll_interval_ms.
+  "fetch_wait_sec": 25,
+  // Least time between two fetches that found nothing.
   "poll_interval_ms": 1000,
 
   // Identity submissions run as when the judge is started as root.

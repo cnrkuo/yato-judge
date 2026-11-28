@@ -150,3 +150,11 @@ TEST_CASE("checkers build with g++ and testlib.h by default; a config file can c
   CHECK(custom.checker_time_ms == 3000);
   CHECK(custom.checker_memory_kb == 65536);
 }
+
+TEST_CASE("long polling is on by default and can be turned off") {
+  const CleanEnv clean;
+  CHECK(load_config(config_file("wait-default.json", R"({"token": "t"})")).fetch_wait_sec == 25);
+  CHECK(load_config(config_file("wait-off.json", R"({"token": "t", "fetch_wait_sec": 0})")).fetch_wait_sec == 0);
+  CHECK_THROWS_AS(load_config(config_file("wait-negative.json", R"({"token": "t", "fetch_wait_sec": -1})")),
+                  std::runtime_error);
+}
